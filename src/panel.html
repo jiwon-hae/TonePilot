@@ -23,6 +23,11 @@
       padding: 0;
     }
 
+    textarea {
+      resize : none;
+      field-sizing: content;
+    }
+
     /* Custom scrollbar styling */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: transparent; border-right: 1px solid transparent; }
@@ -60,7 +65,7 @@
     .header-actions { display: flex; align-items: center; gap: 8px; }
 
     .header-btn {
-      width: 24px; height: 24px; background: none; border: none;
+      width: 20px; height: 20px; background: none; border: none;
       color: #71717a; cursor: pointer; border-radius: 4px;
       display: flex; align-items: center; justify-content: center; font-size: 16px;
     }
@@ -116,8 +121,9 @@
 
     .input-text {
       width: 100%;
+      max-height: 200px;
       min-height: 25px;
-      padding: 15px;
+      padding: 15px 15px 40px 15px;
       background: transparent;
       border: none;
       border-radius: 12px;
@@ -126,7 +132,8 @@
       font-size: 15px;
       color: #ffffff;
       line-height: 1.6;
-      box-sizing: border-box;
+      resize : none;
+      box-sizing: border-box; 
     }
     .input-text::placeholder { color: #71717a; }
     .input-text:focus { outline: none; }
@@ -139,7 +146,7 @@
     .input-action-btn {
       width: 28px; height: 25px; background: none; border: none; border-radius: 6px;
       color: #e4e4e7; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      font-size: 16px; transition: all 0.2s; padding: 5pt;
+      font-size: 16px; transition: all 0.2s;
     }
     .input-action-btn:hover { background: #525252; transform: scale(1.05); }
     .input-action-btn:active { transform: scale(0.95); }
@@ -289,8 +296,21 @@
     .selected-text-label { font-size: 12px; font-weight: 1000; color: #dbeafe; display: flex; align-items: center; gap: 6px; }
 
     .selected-text-clear {
-      background: none; border: none; color: #dbeafe; cursor: pointer; align-items: center;
-      padding: 10px 10px 0px 0px; border-radius: 4px; font-size: 12px; line-height: 1; transition: all 0.2s;
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.2s;
+
+      /* 🔑 Flex to center the icon */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      /* Adjust sizing/padding */
+      width: 24px;   /* or whatever square size you want */
+      height: 24px;
+      padding: 0;    /* remove uneven padding */
     }
     .selected-text-clear:hover { background: rgba(255, 255, 255, 0.2); color: #ffffff; }
 
@@ -432,6 +452,9 @@
         </div>
       </div>
       <div class="header-actions">
+        <button id="uploadBtn" class="header-btn" title="Upload">
+          <img src="../icons/upload.png" alt="Upload" style="width:16px; height:16px;" />
+        </button>
         <button id="settingsBtn" class="header-btn" title="Settings">
           <img src="../icons/gear.png" alt="Setting" style="width:16px; height:16px;" />
         </button>
@@ -458,7 +481,7 @@
           <div id="selectedTextDisplay" class="selected-text-display" style="display: none;">
             <div class="selected-text-header">
               <button id="clearSelectedBtn" class="selected-text-clear" title="Clear selection">
-                <img src="../icons/axe.png" alt="Crop" style="width:10px; height:10px;" />
+                <img src="../icons/axe.png" alt="Clear" style="width:10px; height:10px;" />
               </button>
             </div>
             <div id="selectedTextContent" class="selected-text-content"></div>
@@ -470,7 +493,7 @@
                 <img src="../icons/crop.png" alt="Crop" style="width:16px; height:16px;" />
               </button>
               <button id="submitBtn" class="input-action-btn submit-btn" title="Submit">
-                <img src="../icons/submit.png" alt="Crop" style="width:16px; height:16px;" />
+                <img src="../icons/submit.png" alt="Submit" style="width:16px; height:16px;" />
               </button>
             </div>
           </div>
