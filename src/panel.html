@@ -283,23 +283,32 @@
       display: block;
     }
 
-    .slider {
-      width: 100%;
-      -webkit-appearance: none;
-      height: 4px;
-      border-radius: 2px;
-      background: #d1d5db;
+    .length-input {
+      width: 100px;
+      padding: 8px 12px;
+      background: #262626;
+      border: 1px solid #404040;
+      border-radius: 6px;
+      color: #e4e4e7;
+      font-size: 14px;
+      font-family: inherit;
       outline: none;
+      text-align: center;
     }
 
-    .slider::-webkit-slider-thumb {
+    .length-input:focus {
+      border-color: #525252;
+      background: #2a2a2a;
+    }
+
+    .length-input::-webkit-outer-spin-button,
+    .length-input::-webkit-inner-spin-button {
       -webkit-appearance: none;
-      appearance: none;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #3b82f6;
-      cursor: pointer;
+      margin: 0;
+    }
+
+    .length-input[type=number] {
+      -moz-appearance: textfield;
     }
 
     .toggle {
@@ -841,6 +850,209 @@
       background: #525252;
       border-color: #71717a;
     }
+
+    /* Settings Popup Styles */
+    .settings-popup {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10000;
+    }
+
+    .settings-popup-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+    }
+
+    .settings-popup-content {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 500px;
+      max-width: 90vw;
+      background: #1a1a1a;
+      border: 1px solid #404040;
+      border-radius: 12px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    .settings-popup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 16px 24px;
+      border-bottom: 1px solid #404040;
+    }
+
+    .settings-popup-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #e4e4e7;
+    }
+
+    .settings-close-btn {
+      background: none;
+      border: none;
+      color: #71717a;
+      cursor: pointer;
+      font-size: 24px;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .settings-close-btn:hover {
+      background: #262626;
+      color: #e4e4e7;
+    }
+
+    .settings-popup-body {
+      padding: 24px;
+    }
+
+    .settings-section {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      background: #262626;
+      border: 1px solid #404040;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .setting-row:hover {
+      border-color: #525252;
+      background: #2a2a2a;
+    }
+
+    .setting-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .setting-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #e4e4e7;
+      margin: 0;
+    }
+
+    .setting-description {
+      font-size: 12px;
+      color: #71717a;
+      line-height: 1.4;
+    }
+
+    .setting-control {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .setting-input {
+      width: 100px;
+      padding: 8px 12px;
+      background: #1a1a1a;
+      border: 1px solid #404040;
+      border-radius: 6px;
+      color: #e4e4e7;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      text-align: center;
+    }
+
+    .setting-input:focus {
+      border-color: #525252;
+      background: #2a2a2a;
+    }
+
+    .setting-input::-webkit-outer-spin-button,
+    .setting-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .setting-input[type=number] {
+      -moz-appearance: textfield;
+    }
+
+    .setting-range {
+      font-size: 10px;
+      color: #71717a;
+      text-align: center;
+    }
+
+    .setting-toggle {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .toggle-label {
+      font-size: 14px;
+      color: #e4e4e7;
+    }
+
+    .toggle-input {
+      width: 44px;
+      height: 24px;
+      appearance: none;
+      background: #404040;
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle-input:checked {
+      background: #22c55e;
+    }
+
+    .toggle-input::before {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: white;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s;
+    }
+
+    .toggle-input:checked::before {
+      transform: translateX(20px);
+    }
+
+    .settings-popup-footer {
+      padding: 16px 24px 24px 24px;
+      display: flex;
+      justify-content: flex-end;
+    }
   </style>
 </head>
 <body>
@@ -856,7 +1068,8 @@
         </div>
       </div>
       <div class="header-actions">
-        <button class="header-btn" title="Settings">⚙</button>
+        <button id="captureBtn" class="header-btn" title="Screen Capture">📷</button>
+        <button id="settingsBtn" class="header-btn" title="Settings">⚙</button>
         <button class="header-btn" title="Help">?</button>
       </div>
     </div>
@@ -873,7 +1086,6 @@
           <div id="selectedMediaGrid" class="selected-media-grid">
             <!-- Multiple media thumbnails will be populated here -->
           </div>
-          <button id="removeSelectedMediaBtn" class="selected-media-remove-all" title="Remove all selected media">× Remove All</button>
         </div>
         <div id="textInputWrapper" class="text-input-wrapper">
           <div id="selectedTextDisplay" class="selected-text-display" style="display: none;">
@@ -907,24 +1119,6 @@
 
     <div class="tone-presets" id="presets"></div>
 
-    <div class="controls">
-      <div class="control-group">
-        <label class="control-label">Length</label>
-        <input type="range" id="lengthSlider" class="slider" min="1" max="3" value="2">
-        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #6b7280;">
-          <span>Short</span>
-          <span>Long</span>
-        </div>
-      </div>
-      <div class="control-group">
-        <label class="control-label">Formality</label>
-        <div class="toggle">
-          <span style="font-size: 12px;">Casual</span>
-          <input type="checkbox" id="formalityToggle">
-          <span style="font-size: 12px;">Formal</span>
-        </div>
-      </div>
-    </div>
 
     <div class="action-buttons">
       <button id="rewriteBtn" class="btn btn-primary">Rewrite</button>
@@ -977,6 +1171,47 @@
 
     <div class="footer">
       Privacy by design • All processing on-device
+    </div>
+  </div>
+
+  <!-- Settings Popup -->
+  <div id="settingsPopup" class="settings-popup" style="display: none;">
+    <div class="settings-popup-overlay"></div>
+    <div class="settings-popup-content">
+      <div class="settings-popup-header">
+        <h3>Settings</h3>
+        <button id="closeSettingsBtn" class="settings-close-btn">×</button>
+      </div>
+      <div class="settings-popup-body">
+        <div class="settings-section">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-title">Max Characters</label>
+              <div class="setting-description">Maximum characters in the rewritten text</div>
+            </div>
+            <div class="setting-control">
+              <input type="number" id="maxCharactersInput" class="setting-input" min="50" max="1000" value="300" placeholder="300">
+              <div class="setting-range">50-1000</div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-title">Formality Level</label>
+              <div class="setting-description">Choose between casual or formal tone</div>
+            </div>
+            <div class="setting-control">
+              <div class="setting-toggle">
+                <span class="toggle-label">Casual</span>
+                <input type="checkbox" id="formalityTogglePopup" class="toggle-input">
+                <span class="toggle-label">Formal</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="settings-popup-footer">
+        <button id="saveSettingsBtn" class="btn btn-primary">Save Settings</button>
+      </div>
     </div>
   </div>
 

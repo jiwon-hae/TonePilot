@@ -19,8 +19,6 @@ class TonePilotPanel {
       inputContainer: document.querySelector('.input-container'),
       contextInfo: document.getElementById('contextInfo'),
       presets: document.getElementById('presets'),
-      lengthSlider: document.getElementById('lengthSlider'),
-      formalityToggle: document.getElementById('formalityToggle'),
       rewriteBtn: document.getElementById('rewriteBtn'),
       clearBtn: document.getElementById('clearBtn'),
       loading: document.getElementById('loading'),
@@ -43,7 +41,12 @@ class TonePilotPanel {
       selectMediaBtn: document.getElementById('selectMediaBtn'),
       selectedMediaDisplay: document.getElementById('selectedMediaDisplay'),
       selectedMediaGrid: document.getElementById('selectedMediaGrid'),
-      removeSelectedMediaBtn: document.getElementById('removeSelectedMediaBtn')
+      settingsBtn: document.getElementById('settingsBtn'),
+      settingsPopup: document.getElementById('settingsPopup'),
+      closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+      saveSettingsBtn: document.getElementById('saveSettingsBtn'),
+      maxCharactersInput: document.getElementById('maxCharactersInput'),
+      formalityTogglePopup: document.getElementById('formalityTogglePopup')
     };
 
     // Add captured image property
@@ -53,6 +56,10 @@ class TonePilotPanel {
     this.selectedMediaIds = new Set();
     this.selectedMediaItems = new Map();
     this.selectedMediaArray = [];
+
+    // Track current settings
+    this.currentMaxCharacters = 300;
+    this.currentFormalityToggle = false;
   }
 
   async initialize() {
@@ -97,11 +104,19 @@ class TonePilotPanel {
     this.elements.captureBtn.addEventListener('click', () => this.handleScreenCapture());
     this.elements.clearSelectedBtn.addEventListener('click', () => this.clearSelectedText());
     this.elements.selectMediaBtn.addEventListener('click', () => this.handleSelectMedia());
-    this.elements.removeSelectedMediaBtn.addEventListener('click', () => this.removeSelectedMedia());
 
-    this.elements.lengthSlider.addEventListener('input', (e) => {
-      this.updateLengthDisplay(e.target.value);
+    // Settings popup event listeners
+    this.elements.settingsBtn.addEventListener('click', () => this.openSettingsPopup());
+    this.elements.closeSettingsBtn.addEventListener('click', () => this.closeSettingsPopup());
+    this.elements.saveSettingsBtn.addEventListener('click', () => this.saveSettings());
+
+    // Close popup when clicking overlay
+    this.elements.settingsPopup.addEventListener('click', (e) => {
+      if (e.target.classList.contains('settings-popup-overlay')) {
+        this.closeSettingsPopup();
+      }
     });
+
 
     chrome.runtime.onMessage.addListener((message) => {
       console.log('Panel received message:', message);
@@ -180,12 +195,11 @@ class TonePilotPanel {
   async loadSettings() {
     const defaultPreset = await this.storage.getSetting('defaultPreset', 'diplomatic');
     const formalityPreference = await this.storage.getSetting('formalityPreference', false);
-    const lengthPreference = await this.storage.getSetting('lengthPreference', 2);
-    
+    const lengthPreference = await this.storage.getSetting('lengthPreference', 300);
+
     this.selectPreset(defaultPreset);
-    this.elements.formalityToggle.checked = formalityPreference;
-    this.elements.lengthSlider.value = lengthPreference;
-    this.updateLengthDisplay(lengthPreference);
+    this.currentFormalityToggle = formalityPreference;
+    this.currentMaxCharacters = lengthPreference;
   }
 
   handleNewSelection(selectionData) {
@@ -275,22 +289,20 @@ class TonePilotPanel {
 
   adjustPresetForControls(preset) {
     const adjusted = JSON.parse(JSON.stringify(preset));
-    
-    const lengthValue = parseInt(this.elements.lengthSlider.value);
-    if (lengthValue === 1) {
-      adjusted.constraints.sentenceMax = 1;
-      adjusted.constraints.wordLimit = 25;
-    } else if (lengthValue === 3) {
-      adjusted.constraints.sentenceMax = 5;
-      adjusted.constraints.wordLimit = 150;
-    }
-    
-    if (this.elements.formalityToggle.checked) {
+
+    // Use the character count directly as the character limit
+    adjusted.constraints.characterLimit = this.currentMaxCharacters;
+
+    // Remove old word/sentence limits to prioritize character limit
+    delete adjusted.constraints.wordLimit;
+    delete adjusted.constraints.sentenceMax;
+
+    if (this.currentFormalityToggle) {
       adjusted.constraints.formality = 'formal';
     } else {
       adjusted.constraints.formality = 'casual';
     }
-    
+
     return adjusted;
   }
 
@@ -410,12 +422,6 @@ class TonePilotPanel {
     this.elements.status.textContent = text;
   }
 
-  updateLengthDisplay(value) {
-    const labels = ['Short', 'Medium', 'Long'];
-    const label = labels[value - 1] || 'Medium';
-    
-    this.storage.saveSetting('lengthPreference', parseInt(value));
-  }
 
   showLoading() {
     this.elements.loading.style.display = 'flex';
@@ -535,51 +541,25 @@ class TonePilotPanel {
   displayCapturedImage(dataURL) {
     this.capturedImageData = dataURL;
 
-    // Clear any selected media since we're showing a captured image
-    this.selectedMediaArray = [];
-    this.selectedMediaIds.clear();
-    this.selectedMediaItems.clear();
-
-    // Show the captured image in the grid
-    this.elements.selectedMediaDisplay.style.display = 'block';
-    this.elements.selectedMediaGrid.innerHTML = '';
-
-    // Create thumbnail for captured image
-    const mediaItem = document.createElement('div');
-    mediaItem.className = 'selected-media-item';
-
-    const thumbnail = document.createElement('img');
-    thumbnail.className = 'selected-media-thumbnail';
-    thumbnail.src = dataURL;
-    thumbnail.alt = 'Captured screen';
-
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'selected-media-item-remove';
-    removeBtn.innerHTML = '×';
-    removeBtn.title = 'Remove captured image';
-    removeBtn.onclick = () => this.removeImage();
-
-    mediaItem.appendChild(thumbnail);
-    mediaItem.appendChild(removeBtn);
-    this.elements.selectedMediaGrid.appendChild(mediaItem);
-
     // Update placeholder text to indicate image is included
     this.elements.inputText.placeholder = 'Describe what you want to know about the image or add additional context...';
+
+    // Refresh the display to include both captured image and selected media
+    this.refreshMediaDisplay();
 
     this.showError('Screen captured! You can now ask questions about the image.', 'success');
   }
 
   removeImage() {
     this.capturedImageData = null;
-    this.elements.inputText.placeholder = 'Tell me what to do...';
 
-    // If there's no selected media either, hide the display
-    if (this.selectedMediaArray.length === 0) {
-      this.elements.selectedMediaDisplay.style.display = 'none';
-    } else {
-      // Redisplay selected media without the captured image
-      this.displaySelectedMediaInAssistant(this.selectedMediaArray);
+    // Reset placeholder if no other media exists
+    if (!this.selectedMediaArray || this.selectedMediaArray.length === 0) {
+      this.elements.inputText.placeholder = 'Tell me what to do...';
     }
+
+    // Refresh the display
+    this.refreshMediaDisplay();
   }
 
   async updateWebsiteInfo() {
@@ -646,7 +626,6 @@ class TonePilotPanel {
     // Hide other panels
     this.elements.textInputWrapper.style.display = 'none';
     document.getElementById('presets').style.display = 'none';
-    document.querySelector('.controls').style.display = 'none';
     document.querySelector('.action-buttons').style.display = 'none';
   }
 
@@ -655,7 +634,6 @@ class TonePilotPanel {
     // Show other panels
     this.elements.textInputWrapper.style.display = 'block';
     document.getElementById('presets').style.display = 'grid';
-    document.querySelector('.controls').style.display = 'flex';
     document.querySelector('.action-buttons').style.display = 'flex';
   }
 
@@ -812,62 +790,83 @@ class TonePilotPanel {
   }
 
   displaySelectedMediaInAssistant(mediaArray) {
-    // Clear any captured image since we're showing selected media
-    this.capturedImageData = null;
+    // Store the full array for AI processing
+    this.selectedMediaArray = mediaArray;
 
-    if (mediaArray.length === 0) {
+    // Refresh the display to include both captured image and selected media
+    this.refreshMediaDisplay();
+
+    console.log('Displaying selected media in assistant tab:', mediaArray);
+  }
+
+  refreshMediaDisplay() {
+    // Check if we have any media to display
+    const hasSelectedMedia = this.selectedMediaArray && this.selectedMediaArray.length > 0;
+    const hasCapturedImage = this.capturedImageData;
+
+    if (!hasSelectedMedia && !hasCapturedImage) {
       this.elements.selectedMediaDisplay.style.display = 'none';
       return;
     }
 
-    // Show the selected media display
+    // Show the display and clear the grid
     this.elements.selectedMediaDisplay.style.display = 'block';
-
-    // Clear the grid
     this.elements.selectedMediaGrid.innerHTML = '';
 
-    // Create thumbnail for each selected media
-    mediaArray.forEach((media, index) => {
+    // Add captured image first (if exists)
+    if (hasCapturedImage) {
       const mediaItem = document.createElement('div');
       mediaItem.className = 'selected-media-item';
-      mediaItem.dataset.mediaIndex = index;
+      mediaItem.dataset.mediaType = 'captured';
 
       const thumbnail = document.createElement('img');
       thumbnail.className = 'selected-media-thumbnail';
-      thumbnail.src = media.src;
-      thumbnail.alt = media.alt;
+      thumbnail.src = this.capturedImageData;
+      thumbnail.alt = 'Captured screen';
 
       const removeBtn = document.createElement('button');
       removeBtn.className = 'selected-media-item-remove';
       removeBtn.innerHTML = '×';
-      removeBtn.title = 'Remove this media';
-      removeBtn.onclick = () => this.removeSpecificMedia(index);
+      removeBtn.title = 'Remove captured image';
+      removeBtn.onclick = () => this.removeImage();
 
       mediaItem.appendChild(thumbnail);
       mediaItem.appendChild(removeBtn);
       this.elements.selectedMediaGrid.appendChild(mediaItem);
-    });
+    }
 
-    // Store the full array for AI processing
-    this.selectedMediaArray = mediaArray;
+    // Add selected media (if exists)
+    if (hasSelectedMedia) {
+      this.selectedMediaArray.forEach((media, index) => {
+        const mediaItem = document.createElement('div');
+        mediaItem.className = 'selected-media-item';
+        mediaItem.dataset.mediaType = 'selected';
+        mediaItem.dataset.mediaIndex = index;
 
-    // Reset placeholder if it was changed for image capture
-    this.elements.inputText.placeholder = 'Tell me what to do...';
+        const thumbnail = document.createElement('img');
+        thumbnail.className = 'selected-media-thumbnail';
+        thumbnail.src = media.src;
+        thumbnail.alt = media.alt;
 
-    console.log('Displaying selected media in assistant tab:', mediaArray);
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'selected-media-item-remove';
+        removeBtn.innerHTML = '×';
+        removeBtn.title = 'Remove this media';
+        removeBtn.onclick = () => this.removeSpecificMedia(index);
+
+        mediaItem.appendChild(thumbnail);
+        mediaItem.appendChild(removeBtn);
+        this.elements.selectedMediaGrid.appendChild(mediaItem);
+      });
+    }
   }
 
   removeSpecificMedia(index) {
     // Remove from the array
     this.selectedMediaArray.splice(index, 1);
 
-    // If no media left, hide the display
-    if (this.selectedMediaArray.length === 0) {
-      this.elements.selectedMediaDisplay.style.display = 'none';
-    } else {
-      // Redisplay with remaining media
-      this.displaySelectedMediaInAssistant(this.selectedMediaArray);
-    }
+    // Refresh the display
+    this.refreshMediaDisplay();
   }
 
   removeSelectedMedia() {
@@ -879,14 +878,51 @@ class TonePilotPanel {
     this.selectedMediaIds.clear();
     this.selectedMediaItems.clear();
 
-    // Hide the selected media display
-    this.elements.selectedMediaDisplay.style.display = 'none';
-
     // Reset placeholder text
     this.elements.inputText.placeholder = 'Tell me what to do...';
 
     // Clear media selection in sources panel if visible
     this.clearMediaSelection();
+
+    // Refresh the display (will hide it since everything is cleared)
+    this.refreshMediaDisplay();
+  }
+
+  openSettingsPopup() {
+    // Load current settings into popup
+    this.elements.maxCharactersInput.value = this.currentMaxCharacters || 300;
+    this.elements.formalityTogglePopup.checked = this.currentFormalityToggle || false;
+
+    // Show popup
+    this.elements.settingsPopup.style.display = 'block';
+  }
+
+  closeSettingsPopup() {
+    this.elements.settingsPopup.style.display = 'none';
+  }
+
+  saveSettings() {
+    // Validate and save max characters
+    const maxChars = parseInt(this.elements.maxCharactersInput.value);
+    if (isNaN(maxChars) || maxChars < 50 || maxChars > 1000) {
+      this.showError('Max characters must be between 50 and 1000', 'warning');
+      this.elements.maxCharactersInput.value = 300;
+      this.currentMaxCharacters = 300;
+    } else {
+      this.currentMaxCharacters = maxChars;
+    }
+
+    // Save formality setting
+    this.currentFormalityToggle = this.elements.formalityTogglePopup.checked;
+
+    // Save to storage
+    this.storage.saveSetting('lengthPreference', this.currentMaxCharacters);
+    this.storage.saveSetting('formalityPreference', this.currentFormalityToggle);
+
+    // Close popup
+    this.closeSettingsPopup();
+
+    this.showError('Settings saved successfully!', 'success');
   }
 }
 
