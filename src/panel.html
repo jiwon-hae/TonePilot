@@ -116,15 +116,15 @@
 
     .input-text {
       width: 100%;
-      min-height: 120px;
-      padding: 16px;
+      min-height: 25px;
+      padding: 15px;
       background: transparent;
       border: none;
       border-radius: 12px;
       resize: vertical;
       font-family: inherit;
       font-size: 15px;
-      color: #e4e4e7;
+      color: #ffffff;
       line-height: 1.6;
       box-sizing: border-box;
     }
@@ -137,9 +137,9 @@
       display: flex; gap: 6px; align-items: center;
     }
     .input-action-btn {
-      width: 28px; height: 25px; background: none; border: none; border-radius: 4px;
+      width: 28px; height: 25px; background: none; border: none; border-radius: 6px;
       color: #e4e4e7; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      font-size: 16px; transition: all 0.2s; padding: 3pt;
+      font-size: 16px; transition: all 0.2s; padding: 5pt;
     }
     .input-action-btn:hover { background: #525252; transform: scale(1.05); }
     .input-action-btn:active { transform: scale(0.95); }
@@ -285,18 +285,18 @@
     }
 
     .selected-text-display { background: #262626; border: none; border-radius: 0; overflow: hidden; box-shadow: none; margin-bottom: 0; }
-    .selected-text-header { display: flex; align-items: center; justify-content: flex-end; padding: 2px 2px; background: #262626; }
+    .selected-text-header { display: flex; align-items: center; justify-content: flex-end; padding: 0px 2px; background: #262626; }
     .selected-text-label { font-size: 12px; font-weight: 1000; color: #dbeafe; display: flex; align-items: center; gap: 6px; }
 
     .selected-text-clear {
-      background: none; border: none; color: #dbeafe; cursor: pointer;
-      padding: 10px 10px; border-radius: 4px; font-size: 12px; line-height: 1; transition: all 0.2s;
+      background: none; border: none; color: #dbeafe; cursor: pointer; align-items: center;
+      padding: 10px 10px 0px 0px; border-radius: 4px; font-size: 12px; line-height: 1; transition: all 0.2s;
     }
     .selected-text-clear:hover { background: rgba(255, 255, 255, 0.2); color: #ffffff; }
 
     .selected-text-content {
-      padding: 0px 25px 0px 25px; font-size: 14px; margin-bottom: 15px; line-height: 1.4;
-      color: #b6b9bc; font-style: italic; word-wrap: break-word;
+      padding: 0px 15px 0px 15px; font-size: 14px; margin-bottom: 15px; line-height: 1.4;
+      color: #B3B3B3; font-style: italic; word-wrap: break-word;
       display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical;
       overflow: hidden; text-overflow: ellipsis; height: calc(1.4em * 2);
     }
@@ -432,7 +432,9 @@
         </div>
       </div>
       <div class="header-actions">
-        <button id="settingsBtn" class="header-btn" title="Settings">⚙</button>
+        <button id="settingsBtn" class="header-btn" title="Settings">
+          <img src="../icons/gear.png" alt="Setting" style="width:16px; height:16px;" />
+        </button>
         <button class="header-btn" title="Help">?</button>
       </div>
     </div>
@@ -455,15 +457,21 @@
         <div id="textInputWrapper" class="text-input-wrapper">
           <div id="selectedTextDisplay" class="selected-text-display" style="display: none;">
             <div class="selected-text-header">
-              <button id="clearSelectedBtn" class="selected-text-clear" title="Clear selection">X</button>
+              <button id="clearSelectedBtn" class="selected-text-clear" title="Clear selection">
+                <img src="../icons/axe.png" alt="Crop" style="width:10px; height:10px;" />
+              </button>
             </div>
             <div id="selectedTextContent" class="selected-text-content"></div>
           </div>
           <div class="input-container">
             <textarea id="inputText" class="input-text" placeholder="Ask anything..."></textarea>
             <div class="input-actions">
-              <button id="cropBtn" class="input-action-btn" title="Crop">✂️</button>
-              <button id="submitBtn" class="input-action-btn submit-btn" title="Submit">↑</button>
+              <button id="cropBtn" class="input-action-btn" title="Crop">
+                <img src="../icons/crop.png" alt="Crop" style="width:16px; height:16px;" />
+              </button>
+              <button id="submitBtn" class="input-action-btn submit-btn" title="Submit">
+                <img src="../icons/submit.png" alt="Crop" style="width:16px; height:16px;" />
+              </button>
             </div>
           </div>
         </div>
@@ -528,7 +536,9 @@
     <div class="settings-popup-content">
       <div class="settings-popup-header">
         <h3>Settings</h3>
-        <button id="closeSettingsBtn" class="settings-close-btn">×</button>
+        <button id="closeSettingsBtn" class="settings-close-btn">
+          <img src="../icons/axe.png" alt="Cancel" style="width:16px; height:16px;" />
+        </button>
       </div>
       <div class="settings-popup-body">
         <div class="settings-section">

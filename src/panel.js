@@ -207,7 +207,7 @@ class TonePilotPanel {
     // Don't populate the input text box - keep it empty for user instructions
 
     // Show selected text display
-    this.elements.selectedTextContent.textContent = selectionData.text;
+    this.elements.selectedTextContent.textContent = '"' + selectionData.text + '"';
     this.elements.selectedTextDisplay.style.display = 'block';
     this.elements.inputContainer.classList.add('has-selected-text');
     console.log('Selected text display should now be visible');
