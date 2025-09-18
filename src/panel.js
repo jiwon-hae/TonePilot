@@ -25,7 +25,6 @@ class TonePilotPanel {
       resultContent: document.getElementById('resultContent'),
       replaceBtn: document.getElementById('replaceBtn'),
       copyBtn: document.getElementById('copyBtn'),
-      captureBtn: document.getElementById('captureBtn'),
       websiteInfo: document.getElementById('websiteInfo'),
       websiteName: document.getElementById('websiteName'),
       websiteUrl: document.getElementById('websiteUrl'),
@@ -99,7 +98,6 @@ class TonePilotPanel {
   bindEvents() {
     this.elements.replaceBtn.addEventListener('click', () => this.handleReplace());
     this.elements.copyBtn.addEventListener('click', () => this.handleCopy());
-    this.elements.captureBtn.addEventListener('click', () => this.handleScreenCapture());
     this.elements.clearSelectedBtn.addEventListener('click', () => this.clearSelectedText());
     this.elements.selectMediaBtn.addEventListener('click', () => this.handleSelectMedia());
     this.elements.cropBtn.addEventListener('click', () => this.handleCrop());
