@@ -19,8 +19,6 @@ class TonePilotPanel {
       inputContainer: document.querySelector('.input-container'),
       contextInfo: document.getElementById('contextInfo'),
       presets: document.getElementById('presets'),
-      rewriteBtn: document.getElementById('rewriteBtn'),
-      clearBtn: document.getElementById('clearBtn'),
       loading: document.getElementById('loading'),
       error: document.getElementById('error'),
       resultSection: document.getElementById('resultSection'),
@@ -46,7 +44,9 @@ class TonePilotPanel {
       closeSettingsBtn: document.getElementById('closeSettingsBtn'),
       saveSettingsBtn: document.getElementById('saveSettingsBtn'),
       maxCharactersInput: document.getElementById('maxCharactersInput'),
-      formalityTogglePopup: document.getElementById('formalityTogglePopup')
+      formalityTogglePopup: document.getElementById('formalityTogglePopup'),
+      cropBtn: document.getElementById('cropBtn'),
+      submitBtn: document.getElementById('submitBtn')
     };
 
     // Add captured image property
@@ -97,13 +97,13 @@ class TonePilotPanel {
   }
 
   bindEvents() {
-    this.elements.rewriteBtn.addEventListener('click', () => this.handleRewrite());
-    this.elements.clearBtn.addEventListener('click', () => this.handleClear());
     this.elements.replaceBtn.addEventListener('click', () => this.handleReplace());
     this.elements.copyBtn.addEventListener('click', () => this.handleCopy());
     this.elements.captureBtn.addEventListener('click', () => this.handleScreenCapture());
     this.elements.clearSelectedBtn.addEventListener('click', () => this.clearSelectedText());
     this.elements.selectMediaBtn.addEventListener('click', () => this.handleSelectMedia());
+    this.elements.cropBtn.addEventListener('click', () => this.handleCrop());
+    this.elements.submitBtn.addEventListener('click', () => this.handleSubmit());
 
     // Settings popup event listeners
     this.elements.settingsBtn.addEventListener('click', () => this.openSettingsPopup());
@@ -626,7 +626,6 @@ class TonePilotPanel {
     // Hide other panels
     this.elements.textInputWrapper.style.display = 'none';
     document.getElementById('presets').style.display = 'none';
-    document.querySelector('.action-buttons').style.display = 'none';
   }
 
   hideSourcesPanel() {
@@ -634,7 +633,6 @@ class TonePilotPanel {
     // Show other panels
     this.elements.textInputWrapper.style.display = 'block';
     document.getElementById('presets').style.display = 'grid';
-    document.querySelector('.action-buttons').style.display = 'flex';
   }
 
   async loadPageMedia() {
@@ -923,6 +921,16 @@ class TonePilotPanel {
     this.closeSettingsPopup();
 
     this.showError('Settings saved successfully!', 'success');
+  }
+
+  handleCrop() {
+    // For now, trigger screen capture functionality
+    this.handleScreenCapture();
+  }
+
+  handleSubmit() {
+    // For now, trigger rewrite functionality
+    this.handleRewrite();
   }
 }
 

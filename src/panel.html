@@ -189,19 +189,19 @@
 
     .input-actions {
       position: absolute;
-      right: 12px;
-      bottom: 12px;
+      right: 8px;
+      bottom: 8px;
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
     }
 
     .input-action-btn {
-      width: 32px;
-      height: 32px;
-      background: #404040;
+      width: 28px;
+      height: 25px;
+      background: none;
       border: none;
-      border-radius: 8px;
+      border-radius: 4px;
       color: #e4e4e7;
       cursor: pointer;
       display: flex;
@@ -209,6 +209,7 @@
       justify-content: center;
       font-size: 16px;
       transition: all 0.2s;
+      padding:3pt;
     }
 
     .input-action-btn:hover {
@@ -218,6 +219,15 @@
 
     .input-action-btn:active {
       transform: scale(0.95);
+    }
+
+    .submit-btn {
+      background: #c6cdce;
+      color: #191a1a;
+    }
+
+    .submit-btn:hover {
+      background: #525252;
     }
 
     .tone-presets {
@@ -625,7 +635,7 @@
     }
 
     .selected-text-clear {
-      background: rgba(255, 255, 255, 0.1);
+      background: none;
       border: none;
       color: #dbeafe;
       cursor: pointer;
@@ -1095,9 +1105,10 @@
             <div id="selectedTextContent" class="selected-text-content"></div>
           </div>
           <div class="input-container">
-            <textarea id="inputText" class="input-text" placeholder="Tell me what to do..."></textarea>
+            <textarea id="inputText" class="input-text" placeholder="Ask anything..."></textarea>
             <div class="input-actions">
-              <button id="captureBtn" class="input-action-btn" title="Screen Capture">📷</button>
+              <button id="cropBtn" class="input-action-btn" title="Crop">✂️</button>
+              <button id="submitBtn" class="input-action-btn submit-btn" title="Submit">↑</button>
             </div>
           </div>
         </div>
@@ -1118,17 +1129,6 @@
 
 
     <div class="tone-presets" id="presets"></div>
-
-
-    <div class="action-buttons">
-      <button id="rewriteBtn" class="btn btn-primary">Rewrite</button>
-      <button id="clearBtn" class="btn btn-secondary">Clear</button>
-    </div>
-
-    <div id="loading" class="loading" style="display: none;">
-      <div class="spinner"></div>
-      <span>Rewriting text...</span>
-    </div>
 
     <div id="error" class="error" style="display: none;"></div>
 
