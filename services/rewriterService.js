@@ -17,13 +17,13 @@ class RewriterService {
    */
   async checkAvailability() {
     try {
-      if (typeof window.ai?.rewriter === 'undefined') {
+      if (typeof self.Rewriter === 'undefined') {
         console.warn('Chrome Rewriter API not available. Requires Chrome 137+ with AI features enabled.');
         return false;
       }
 
-      const availability = await window.ai.rewriter.availability();
-      this.isAvailable = availability === 'available';
+      const availability = await Rewriter.availability();
+      this.isAvailable = availability !== 'unavailable';
 
       if (!this.isAvailable) {
         console.warn('Chrome Rewriter not available:', availability);
@@ -87,7 +87,7 @@ class RewriterService {
         createOptions.sharedContext = finalConfig.sharedContext;
       }
 
-      this.rewriter = await window.ai.rewriter.create(createOptions);
+      this.rewriter = await Rewriter.create(createOptions);
 
       this.currentConfig = finalConfig;
       this.isInitialized = true;

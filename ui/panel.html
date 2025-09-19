@@ -1353,6 +1353,23 @@
   <script src="modules/settingsManager.js"></script>
   <script src="modules/aiServicesManager.js"></script>
 
+  <!-- Loading verification -->
+  <script>
+    console.log('📦 All modules loaded, checking exports...');
+    const moduleCheck = {
+      constants: window.TONEPILOT_CONSTANTS,
+      stateManager: window.TonePilotStateManager,
+      uiManager: window.TonePilotUIManager,
+      messageHandler: window.TonePilotMessageHandler,
+      settingsManager: window.TonePilotSettingsManager,
+      aiServicesManager: window.TonePilotAIServicesManager
+    };
+
+    for (const [name, module] of Object.entries(moduleCheck)) {
+      console.log(`${module ? '✅' : '❌'} ${name}:`, typeof module);
+    }
+  </script>
+
   <!-- Main Panel Controller -->
   <script src="panel.js"></script>
 

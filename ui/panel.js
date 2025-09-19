@@ -58,6 +58,11 @@ class TonePilotPanel {
       await this.messageHandler.initialize();
       await this.aiServicesManager.initializeServices();
 
+      // Request AI API probe from background (don't block initialization)
+      this.requestAPIProbe().catch(error => {
+        console.warn('API probe failed, continuing initialization:', error);
+      });
+
       // Final UI setup
       await this.initializeUIComponents();
 
@@ -86,10 +91,143 @@ class TonePilotPanel {
   }
 
   /**
+   * Test Chrome AI APIs directly
+   */
+  async testChromeAIAPIs() {
+    console.log('🧪 Testing Chrome AI APIs directly...');
+
+    // Check if the new global API objects exist
+    console.log('🔍 LanguageModel exists:', Boolean(self.LanguageModel));
+    console.log('🔍 Rewriter exists:', Boolean(self.Rewriter));
+    console.log('🔍 Summarizer exists:', Boolean(self.Summarizer));
+    console.log('🔍 Proofreader exists:', Boolean(self.Proofreader));
+
+    const tests = {
+      LanguageModel: Boolean(self.LanguageModel),
+      Rewriter: Boolean(self.Rewriter),
+      Summarizer: Boolean(self.Summarizer),
+      Proofreader: Boolean(self.Proofreader)
+    };
+
+    console.log('📊 API Presence Tests:', tests);
+
+    // Log Chrome version and user agent for debugging
+    console.log('🌐 Chrome Info:', {
+      userAgent: navigator.userAgent,
+      chromeVersion: navigator.userAgentData?.brands?.find(b => b.brand === 'Google Chrome')?.version,
+      platform: navigator.platform,
+      cookieEnabled: navigator.cookieEnabled
+    });
+
+    // Check if we're in the right context
+    console.log('🔧 Extension Context:', {
+      isExtension: Boolean(chrome?.runtime),
+      extensionId: chrome?.runtime?.id,
+      isServiceWorker: typeof importScripts === 'function',
+      isContentScript: window.location.protocol.startsWith('http'),
+      isSidePanel: window.location.href.includes('panel.html')
+    });
+
+    // Test actual API calls with more detailed error reporting
+    const apiTests = {};
+
+    if (!self.LanguageModel) {
+      console.error('❌ Chrome Built-in AI APIs are not available. This could mean:');
+      console.error('   1. Chrome Built-in AI flags are not enabled');
+      console.error('   2. Chrome version is too old (need 121+ for LanguageModel)');
+      console.error('   3. Running in wrong context (service worker vs panel)');
+      console.error('   4. Chrome AI features not supported on this platform');
+      console.error('   5. Origin trial not configured for specialized APIs');
+      return { tests, apiTests, error: 'Chrome Built-in AI APIs not available' };
+    }
+
+    try {
+      if (self.LanguageModel) {
+        console.log('🔍 Testing LanguageModel.availability()...');
+        const availability = await LanguageModel.availability();
+        console.log('📋 LanguageModel availability result:', availability);
+        apiTests.languageModel = { available: availability !== 'unavailable', details: availability };
+
+        // Try to create a session if available
+        if (availability !== 'unavailable') {
+          try {
+            console.log('🔍 Testing LanguageModel.create()...');
+            const session = await LanguageModel.create();
+            console.log('✅ LanguageModel session created successfully');
+            apiTests.languageModel.sessionCreated = true;
+            session.destroy?.(); // Clean up
+          } catch (sessionError) {
+            console.error('❌ LanguageModel session creation failed:', sessionError);
+            apiTests.languageModel.sessionError = sessionError.message;
+          }
+        }
+      } else {
+        console.warn('⚠️ LanguageModel is undefined');
+        apiTests.languageModel = { available: false, error: 'API not present' };
+      }
+    } catch (error) {
+      console.error('❌ LanguageModel test failed:', error);
+      apiTests.languageModel = { available: false, error: error.message };
+    }
+
+    try {
+      if (self.Rewriter) {
+        console.log('🔍 Testing Rewriter.availability()...');
+        const availability = await Rewriter.availability();
+        console.log('📋 Rewriter availability result:', availability);
+        apiTests.rewriter = { available: availability !== 'unavailable', details: availability };
+      } else {
+        console.warn('⚠️ Rewriter is undefined');
+        apiTests.rewriter = { available: false, error: 'API not present' };
+      }
+    } catch (error) {
+      console.error('❌ Rewriter test failed:', error);
+      apiTests.rewriter = { available: false, error: error.message };
+    }
+
+    try {
+      if (self.Summarizer) {
+        console.log('🔍 Testing Summarizer.availability()...');
+        const availability = await Summarizer.availability();
+        console.log('📋 Summarizer availability result:', availability);
+        apiTests.summarizer = { available: availability !== 'unavailable', details: availability };
+      } else {
+        console.warn('⚠️ Summarizer is undefined');
+        apiTests.summarizer = { available: false, error: 'API not present' };
+      }
+    } catch (error) {
+      console.error('❌ Summarizer test failed:', error);
+      apiTests.summarizer = { available: false, error: error.message };
+    }
+
+    try {
+      if (self.Proofreader) {
+        console.log('🔍 Testing Proofreader.availability()...');
+        const availability = await Proofreader.availability();
+        console.log('📋 Proofreader availability result:', availability);
+        apiTests.proofreader = { available: availability !== 'unavailable', details: availability };
+      } else {
+        console.warn('⚠️ Proofreader is undefined');
+        apiTests.proofreader = { available: false, error: 'API not present' };
+      }
+    } catch (error) {
+      console.error('❌ Proofreader test failed:', error);
+      apiTests.proofreader = { available: false, error: error.message };
+    }
+
+    console.log('🔬 Final API Test Results:', apiTests);
+
+    return { tests, apiTests };
+  }
+
+  /**
    * Initialize UI components
    */
   async initializeUIComponents() {
     try {
+      // Test Chrome AI APIs
+      await this.testChromeAIAPIs();
+
       this.updateWebsiteInfo();
       this.checkForCurrentSelection();
       await this.loadPageMedia();
@@ -187,11 +325,21 @@ class TonePilotPanel {
 
       // Save to history if available
       if (this.storage) {
-        await this.storage.saveRewriteHistory({
-          input: inputText,
-          selection: selectionState.currentSelection?.text || '',
-          results: results,
-          timestamp: Date.now()
+        const originalText = selectionState.currentSelection?.text || inputText;
+        const rewrittenText = results.primary || '';
+        const preset = results.service || 'unknown';
+
+        await this.storage.saveRewrite({
+          originalText: originalText,
+          rewrittenText: rewrittenText,
+          preset: preset,
+          domain: window.location.hostname || 'unknown',
+          metadata: {
+            intent: results.intent,
+            via: results.via,
+            service: results.service,
+            type: results.type
+          }
         });
       }
 
@@ -632,20 +780,19 @@ class TonePilotPanel {
       sidePanel: Boolean(chrome?.sidePanel),
       contextMenus: Boolean(chrome?.contextMenus),
       scripting: Boolean(chrome?.scripting),
-      ai: Boolean(window?.ai),
-      aiLanguageModel: Boolean(window?.ai?.languageModel),
-      aiRewriter: Boolean(window?.ai?.rewriter),
-      aiSummarizer: Boolean(window?.ai?.summarizer),
-      aiProofreader: Boolean(window?.ai?.proofreader)
+      LanguageModel: Boolean(self.LanguageModel),
+      Rewriter: Boolean(self.Rewriter),
+      Summarizer: Boolean(self.Summarizer),
+      Proofreader: Boolean(self.Proofreader)
     };
 
     const coreAPIs = ['runtime', 'tabs', 'storage'];
     const extensionAPIs = ['sidePanel', 'contextMenus', 'scripting'];
-    const aiAPIs = ['ai', 'aiLanguageModel', 'aiRewriter', 'aiSummarizer', 'aiProofreader'];
+    const aiAPIs = ['LanguageModel', 'Rewriter', 'Summarizer', 'Proofreader'];
 
     const coreAvailable = coreAPIs.every(api => apis[api]);
     const extensionAvailable = extensionAPIs.every(api => apis[api]);
-    const aiAvailable = apis.ai && apis.aiLanguageModel;
+    const aiAvailable = apis.LanguageModel;
     const allAIAvailable = aiAPIs.every(api => apis[api]);
 
     return {
@@ -729,6 +876,70 @@ class TonePilotPanel {
   }
 
   /**
+   * Request AI API probe from background script
+   */
+  async requestAPIProbe() {
+    try {
+      console.log('🔍 Requesting AI API probe from background...');
+
+      const response = await chrome.runtime.sendMessage({ action: 'PROBE_AI_APIS' });
+
+      if (response && response.success && response.status) {
+        console.log('🤖 AI API Probe Results:', response.status);
+
+        // Update UI with comprehensive API status
+        this.updateUIWithAPIStatus(response.status);
+
+        // Store for later reference
+        this.backgroundAPIStatus = response.status;
+      } else {
+        console.warn('⚠️ API probe failed or returned invalid data');
+      }
+    } catch (error) {
+      console.error('❌ Failed to request API probe:', error);
+    }
+  }
+
+  /**
+   * Update UI with comprehensive API status from background probe
+   */
+  updateUIWithAPIStatus(apiStatus) {
+    if (!apiStatus || !apiStatus.summary) return;
+
+    const { summary } = apiStatus;
+
+    // Update status badge based on comprehensive results
+    switch (summary.status) {
+      case 'all_working':
+        this.uiManager.updateStatus('ready', `All AI APIs working (${summary.workingAPIs}/${summary.totalAPIs})`);
+        break;
+      case 'partial_working':
+        this.uiManager.updateStatus('warning', `Some AI APIs working (${summary.workingAPIs}/${summary.totalAPIs})`);
+        break;
+      case 'available_only':
+        this.uiManager.updateStatus('warning', `AI APIs available but not working (${summary.availableAPIs}/${summary.totalAPIs})`);
+        break;
+      case 'none_available':
+        this.uiManager.updateStatus('error', 'No AI APIs available');
+        break;
+      default:
+        this.uiManager.updateStatus('error', 'API status unknown');
+    }
+
+    // Log detailed results
+    console.log('📊 Detailed API Status:', {
+      summary: summary,
+      lastChecked: new Date(apiStatus.lastChecked).toLocaleString(),
+      errors: summary.errors
+    });
+
+    // Show errors if any
+    if (summary.errors && summary.errors.length > 0) {
+      console.warn('⚠️ API Errors:', summary.errors);
+    }
+  }
+
+  /**
    * Show AI setup guidance
    */
   showAISetupGuidance(description) {
@@ -774,7 +985,20 @@ To enable Chrome AI:
 
 // Initialize panel when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 DOM Content Loaded, starting TonePilot initialization...');
+
   try {
+    // Check basic requirements first
+    console.log('🔍 Checking basic requirements...');
+
+    if (typeof window === 'undefined') {
+      throw new Error('Window object not available');
+    }
+
+    if (typeof chrome === 'undefined' || !chrome.runtime) {
+      console.warn('⚠️ Chrome extension APIs not available');
+    }
+
     // Verify all required modules are available
     const requiredModules = [
       'TonePilotStateManager',
@@ -785,12 +1009,19 @@ document.addEventListener('DOMContentLoaded', () => {
       'TONEPILOT_CONSTANTS'
     ];
 
-    const missingModules = requiredModules.filter(module => !window[module]);
+    console.log('🔍 Checking required modules...');
+    const missingModules = requiredModules.filter(module => {
+      const available = Boolean(window[module]);
+      console.log(`${available ? '✅' : '❌'} ${module}: ${typeof window[module]}`);
+      return !available;
+    });
 
     if (missingModules.length > 0) {
       console.error('❌ Missing required modules:', missingModules);
       throw new Error(`Required modules not loaded: ${missingModules.join(', ')}`);
     }
+
+    console.log('✅ All modules available, creating panel...');
 
     // Initialize panel
     window.tonePilotPanel = new TonePilotPanel();
@@ -804,6 +1035,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (errorElement) {
       errorElement.textContent = `Initialization failed: ${error.message}`;
       errorElement.style.display = 'block';
+    }
+
+    // Also try to show in status badge
+    const statusElement = document.getElementById('status');
+    if (statusElement) {
+      statusElement.className = 'status-badge status-error';
+      statusElement.title = `Error: ${error.message}`;
     }
   }
 });

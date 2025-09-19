@@ -25,6 +25,59 @@ class TonePilotAIServicesManager {
       this.rewriterService = new window.RewriterService();
       this.summarizerService = new window.SummarizerService();
 
+      // Check availability for each service individually with detailed error reporting
+      console.log('🔍 Checking service availability...');
+
+      const serviceChecks = [];
+
+      try {
+        await this.proofreaderService.checkAvailability();
+        console.log('✅ Proofreader service availability check completed');
+      } catch (error) {
+        console.error('❌ Proofreader service availability check failed:', error);
+        serviceChecks.push({ service: 'proofreader', error: error.message });
+      }
+
+      try {
+        await this.rewriterService.checkAvailability();
+        console.log('✅ Rewriter service availability check completed');
+      } catch (error) {
+        console.error('❌ Rewriter service availability check failed:', error);
+        serviceChecks.push({ service: 'rewriter', error: error.message });
+      }
+
+      try {
+        await this.summarizerService.checkAvailability();
+        console.log('✅ Summarizer service availability check completed');
+      } catch (error) {
+        console.error('❌ Summarizer service availability check failed:', error);
+        serviceChecks.push({ service: 'summarizer', error: error.message });
+      }
+
+      // Log detailed service availability status
+      const serviceStatus = {
+        proofreader: this.proofreaderService.isAvailable,
+        rewriter: this.rewriterService.isAvailable,
+        summarizer: this.summarizerService.isAvailable
+      };
+
+      console.log('📊 Service availability status:', serviceStatus);
+
+      // Check if any services are unavailable
+      const unavailableServices = Object.entries(serviceStatus)
+        .filter(([service, available]) => !available)
+        .map(([service]) => service);
+
+      if (unavailableServices.length > 0) {
+        console.warn('⚠️ Some services are unavailable:', unavailableServices);
+
+        // Log detailed error but don't throw since we have fallbacks
+        if (unavailableServices.length === 3) {
+          const errorDetails = serviceChecks.map(check => `${check.service}: ${check.error}`).join('; ');
+          console.warn(`⚠️ Chrome AI APIs not available for all services, will use fallbacks. Details: ${errorDetails}`);
+        }
+      }
+
       // Generate and display status report
       const statusReport = await this.aiSetupService.generateStatusReport();
       this.updateAIStatusDisplay(statusReport);
@@ -98,14 +151,25 @@ class TonePilotAIServicesManager {
    */
   async handleProofread(text) {
     console.log('📝 Proofreading text...');
-    const result = await this.proofreaderService.proofread(text);
 
-    return {
-      primary: result.corrected,
-      original: result.original,
-      type: 'proofread',
-      service: 'proofreader'
-    };
+    if (!this.proofreaderService.isAvailable) {
+      console.warn('⚠️ Proofreader service not available, using fallback');
+      // Fallback to language model if proofreader not available
+      return await this.handleRewrite(text, 'Please proofread and correct any errors in this text');
+    }
+
+    try {
+      const result = await this.proofreaderService.proofread(text);
+      return {
+        primary: result.corrected,
+        original: result.original,
+        type: 'proofread',
+        service: 'proofreader'
+      };
+    } catch (error) {
+      console.error('❌ Proofreader service failed, using fallback:', error);
+      return await this.handleRewrite(text, 'Please proofread and correct any errors in this text');
+    }
   }
 
   /**
@@ -115,17 +179,29 @@ class TonePilotAIServicesManager {
    */
   async handleSummarize(text) {
     console.log('📋 Summarizing text...');
-    const result = await this.summarizerService.summarize(text, {
-      type: 'key-points',
-      length: 'medium'
-    });
 
-    return {
-      primary: result.summary,
-      original: text,
-      type: 'summarize',
-      service: 'summarizer'
-    };
+    if (!this.summarizerService.isAvailable) {
+      console.warn('⚠️ Summarizer service not available, using fallback');
+      // Fallback to language model if summarizer not available
+      return await this.handleRewrite(text, 'Please summarize this text with key points');
+    }
+
+    try {
+      const result = await this.summarizerService.summarize(text, {
+        type: 'key-points',
+        length: 'medium'
+      });
+
+      return {
+        primary: result.summary,
+        original: text,
+        type: 'summarize',
+        service: 'summarizer'
+      };
+    } catch (error) {
+      console.error('❌ Summarizer service failed, using fallback:', error);
+      return await this.handleRewrite(text, 'Please summarize this text with key points');
+    }
   }
 
   /**
@@ -140,19 +216,56 @@ class TonePilotAIServicesManager {
     // Determine tone from instructions
     const tone = this.extractToneFromInstructions(instructions);
 
-    const result = await this.rewriterService.rewrite(text, {
-      tone: tone,
-      format: 'as-is',
-      length: 'as-is'
-    });
+    if (!this.rewriterService.isAvailable) {
+      console.warn('⚠️ Rewriter service not available, using language model fallback');
+      // Fallback to language model via PromptService
+      try {
+        const promptService = new window.PromptService();
+        const prompt = `${instructions}\n\nText to process: "${text}"`;
+        const result = await promptService.send(prompt);
+        return {
+          primary: result,
+          original: text,
+          type: 'rewrite',
+          service: 'languageModel',
+          tone: tone
+        };
+      } catch (error) {
+        throw new Error(`Language model fallback failed: ${error.message}`);
+      }
+    }
 
-    return {
-      primary: result.rewritten,
-      original: result.original,
-      type: 'rewrite',
-      service: 'rewriter',
-      tone: tone
-    };
+    try {
+      const result = await this.rewriterService.rewrite(text, {
+        tone: tone,
+        format: 'as-is',
+        length: 'as-is'
+      });
+
+      return {
+        primary: result.rewritten,
+        original: result.original,
+        type: 'rewrite',
+        service: 'rewriter',
+        tone: tone
+      };
+    } catch (error) {
+      console.error('❌ Rewriter service failed, using language model fallback:', error);
+      try {
+        const promptService = new window.PromptService();
+        const prompt = `${instructions}\n\nText to process: "${text}"`;
+        const result = await promptService.send(prompt);
+        return {
+          primary: result,
+          original: text,
+          type: 'rewrite',
+          service: 'languageModel',
+          tone: tone
+        };
+      } catch (fallbackError) {
+        throw new Error(`Both rewriter and language model failed: ${error.message}; ${fallbackError.message}`);
+      }
+    }
   }
 
   /**

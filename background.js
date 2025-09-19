@@ -31,6 +31,83 @@ const BACKGROUND_CONSTANTS = {
 };
 
 /**
+ * AI API Status Management
+ */
+let _apiStatus = {
+  lastChecked: null,
+  status: 'unknown',
+  results: null,
+  summary: null
+};
+
+/**
+ * Probe AI APIs through content script
+ */
+async function _probeAIAPIs(tabId) {
+  try {
+    console.log('🔍 Probing AI APIs via content script...');
+
+    const response = await chrome.tabs.sendMessage(tabId, { action: 'probeAIAPIs' });
+
+    if (response && response.probeResults) {
+      _apiStatus = {
+        lastChecked: Date.now(),
+        status: response.probeResults.summary.status,
+        results: response.probeResults,
+        summary: response.probeResults.summary
+      };
+
+      console.log('🤖 AI API Status Updated:', _apiStatus.summary);
+
+      // Broadcast status update to all panels
+      _broadcastAPIStatus();
+
+      return _apiStatus;
+    } else {
+      throw new Error('No probe results received');
+    }
+  } catch (error) {
+    console.error('❌ AI API probe failed:', error);
+    _apiStatus = {
+      lastChecked: Date.now(),
+      status: 'error',
+      results: null,
+      summary: { error: error.message }
+    };
+    return _apiStatus;
+  }
+}
+
+/**
+ * Get current API status
+ */
+function _getAPIStatus() {
+  return _apiStatus;
+}
+
+/**
+ * Broadcast API status to all panels
+ */
+async function _broadcastAPIStatus() {
+  try {
+    const message = {
+      action: 'API_STATUS_UPDATE',
+      data: _apiStatus
+    };
+
+    // Send to all extension pages (panels)
+    const extensionPages = chrome.extension.getViews();
+    extensionPages.forEach(page => {
+      if (page.location.pathname.includes('panel.html')) {
+        page.postMessage(message, '*');
+      }
+    });
+  } catch (error) {
+    console.error('Failed to broadcast API status:', error);
+  }
+}
+
+/**
  * Initialize extension on install
  * Sets up context menus and other startup tasks
  */
@@ -157,6 +234,14 @@ function _handleRuntimeMessage(message, sender, sendResponse) {
       _handleReplaceText(data, sender, sendResponse);
       break;
 
+    case 'PROBE_AI_APIS':
+      _handleProbeAIAPIs(sender, sendResponse);
+      return true; // Keep message channel open for async response
+
+    case 'GET_API_STATUS':
+      _handleGetAPIStatus(sendResponse);
+      break;
+
     default:
       console.warn('Unknown message action:', action);
       sendResponse({ error: 'Unknown action' });
@@ -247,6 +332,35 @@ function _handleReplaceText(data, sender, sendResponse) {
   }).catch(error => {
     sendResponse({ error: error.message });
   });
+}
+
+/**
+ * Handle AI API probe request
+ * @private
+ * @param {Object} sender - Message sender
+ * @param {Function} sendResponse - Response callback
+ */
+async function _handleProbeAIAPIs(sender, sendResponse) {
+  try {
+    if (sender.tab && sender.tab.id) {
+      const status = await _probeAIAPIs(sender.tab.id);
+      sendResponse({ success: true, status });
+    } else {
+      sendResponse({ error: 'No tab information available' });
+    }
+  } catch (error) {
+    console.error('Failed to probe AI APIs:', error);
+    sendResponse({ error: error.message });
+  }
+}
+
+/**
+ * Handle get API status request
+ * @private
+ * @param {Function} sendResponse - Response callback
+ */
+function _handleGetAPIStatus(sendResponse) {
+  sendResponse({ success: true, status: _getAPIStatus() });
 }
 
 /**

@@ -312,10 +312,201 @@ function highlightElement(element) {
   }, 2000);
 }
 
+// AI API Probing Functions
+async function probePromptAPI() {
+  const result = {
+    hasAPI: !!(window.ai && window.ai.languageModel),
+    created: false,
+    prompted: false,
+    output: "",
+    error: null,
+    apiName: "languageModel"
+  };
+
+  if (!result.hasAPI) return result;
+
+  try {
+    const session = await window.ai.languageModel.create({
+      initialPrompts: [{ role: "system", content: "You are a terse echo bot." }]
+    });
+    result.created = true;
+
+    const res = await session.prompt("ping");
+    result.prompted = true;
+    result.output = (res?.output ?? res?.output_text ?? "").trim();
+    return result;
+  } catch (e) {
+    result.error = e?.message || String(e);
+    return result;
+  }
+}
+
+async function probeRewriterAPI() {
+  const result = {
+    hasAPI: !!(window.ai && window.ai.rewriter),
+    created: false,
+    rewritten: false,
+    output: "",
+    error: null,
+    apiName: "rewriter"
+  };
+
+  if (!result.hasAPI) return result;
+
+  try {
+    const rewriter = await window.ai.rewriter.create({
+      tone: 'as-is',
+      format: 'as-is',
+      length: 'as-is'
+    });
+    result.created = true;
+
+    const res = await rewriter.rewrite("Hello world");
+    result.rewritten = true;
+    result.output = (res || "").trim();
+    return result;
+  } catch (e) {
+    result.error = e?.message || String(e);
+    return result;
+  }
+}
+
+async function probeSummarizerAPI() {
+  const result = {
+    hasAPI: !!(window.ai && window.ai.summarizer),
+    created: false,
+    summarized: false,
+    output: "",
+    error: null,
+    apiName: "summarizer"
+  };
+
+  if (!result.hasAPI) return result;
+
+  try {
+    const summarizer = await window.ai.summarizer.create({
+      type: 'key-points',
+      format: 'markdown',
+      length: 'short'
+    });
+    result.created = true;
+
+    const res = await summarizer.summarize("This is a test text for summarization. It contains multiple sentences to test the API.");
+    result.summarized = true;
+    result.output = (res || "").trim();
+    return result;
+  } catch (e) {
+    result.error = e?.message || String(e);
+    return result;
+  }
+}
+
+async function probeProofreaderAPI() {
+  const result = {
+    hasAPI: !!(window.ai && window.ai.proofreader),
+    created: false,
+    proofread: false,
+    output: "",
+    error: null,
+    apiName: "proofreader"
+  };
+
+  if (!result.hasAPI) return result;
+
+  try {
+    const proofreader = await window.ai.proofreader.create();
+    result.created = true;
+
+    const res = await proofreader.proofread("Ths is a test sentance with erors.");
+    result.proofread = true;
+    result.output = (res?.correction || res || "").trim();
+    return result;
+  } catch (e) {
+    result.error = e?.message || String(e);
+    return result;
+  }
+}
+
+async function probeAllAIAPIs() {
+  console.log('🧪 Starting comprehensive AI API probe...');
+
+  const startTime = Date.now();
+  const results = {
+    timestamp: new Date().toISOString(),
+    url: window.location.href,
+    userAgent: navigator.userAgent,
+    probes: {}
+  };
+
+  // Test each API
+  const apiTests = [
+    { name: 'languageModel', test: probePromptAPI },
+    { name: 'rewriter', test: probeRewriterAPI },
+    { name: 'summarizer', test: probeSummarizerAPI },
+    { name: 'proofreader', test: probeProofreaderAPI }
+  ];
+
+  for (const { name, test } of apiTests) {
+    try {
+      console.log(`🔍 Testing ${name} API...`);
+      results.probes[name] = await test();
+      console.log(`${results.probes[name].hasAPI ? '✅' : '❌'} ${name}:`, results.probes[name]);
+    } catch (error) {
+      console.error(`💥 ${name} probe failed:`, error);
+      results.probes[name] = {
+        hasAPI: false,
+        created: false,
+        error: error.message,
+        apiName: name
+      };
+    }
+  }
+
+  results.duration = Date.now() - startTime;
+  results.summary = generateProbeSummary(results.probes);
+
+  console.log('📊 AI API Probe Complete:', results);
+  return results;
+}
+
+function generateProbeSummary(probes) {
+  const summary = {
+    totalAPIs: Object.keys(probes).length,
+    availableAPIs: 0,
+    workingAPIs: 0,
+    errors: []
+  };
+
+  for (const [name, result] of Object.entries(probes)) {
+    if (result.hasAPI) {
+      summary.availableAPIs++;
+
+      // Check if API is fully working
+      const isWorking = result.created && (
+        result.prompted || result.rewritten || result.summarized || result.proofread
+      );
+
+      if (isWorking) {
+        summary.workingAPIs++;
+      }
+    }
+
+    if (result.error) {
+      summary.errors.push({ api: name, error: result.error });
+    }
+  }
+
+  summary.status = summary.workingAPIs === summary.totalAPIs ? 'all_working' :
+                   summary.workingAPIs > 0 ? 'partial_working' :
+                   summary.availableAPIs > 0 ? 'available_only' : 'none_available';
+
+  return summary;
+}
+
 // Log that content script is loaded
 console.log('🚀 TonePilot content script loaded');
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
   console.log('🎯 Content script received message:', message);
 
   if (message.action === 'getSelection') {
@@ -354,6 +545,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'scrollToMedia') {
     const success = scrollToMediaElement(message.elementId);
     sendResponse({ success });
+  }
+
+  if (message.action === 'probeAIAPIs') {
+    console.log('🔍 Probing AI APIs...');
+    // Handle async operation properly
+    (async () => {
+      try {
+        const probeResults = await probeAllAIAPIs();
+        sendResponse({ probeResults });
+      } catch (error) {
+        console.error('Probe failed:', error);
+        sendResponse({ error: error.message });
+      }
+    })();
+    return true; // Keep message channel open
   }
 
   return true;

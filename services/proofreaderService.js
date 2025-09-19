@@ -14,15 +14,15 @@ class ProofreaderService {
    * Check if Chrome Proofreader API is available
    * @returns {boolean} True if API is available
    */
-  checkAvailability() {
+  async checkAvailability() {
     try {
-      if (typeof window.ai?.proofreader === 'undefined') {
+      if (typeof self.Proofreader === 'undefined') {
         console.warn('Chrome Proofreader API not available. Requires Chrome 141+ with AI features enabled.');
         return false;
       }
 
-      const availability = window.ai.proofreader.availability();
-      this.isAvailable = availability === 'available';
+      const availability = await Proofreader.availability();
+      this.isAvailable = availability !== 'unavailable';
 
       if (!this.isAvailable) {
         console.warn('Chrome Proofreader not available:', availability);
@@ -45,12 +45,12 @@ class ProofreaderService {
       return true;
     }
 
-    if (!this.checkAvailability()) {
+    if (!(await this.checkAvailability())) {
       throw new Error('Chrome Proofreader API not available');
     }
 
     try {
-      this.proofreader = await window.ai.proofreader.create({
+      this.proofreader = await Proofreader.create({
         expectedInputLanguages: languages,
         monitor(m) {
           m.addEventListener('downloadprogress', (e) => {

@@ -17,13 +17,13 @@ class SummarizerService {
    */
   async checkAvailability() {
     try {
-      if (typeof window.ai?.summarizer === 'undefined') {
+      if (typeof self.Summarizer === 'undefined') {
         console.warn('Chrome Summarizer API not available. Requires Chrome 138+ with AI features enabled.');
         return false;
       }
 
-      const availability = await window.ai.summarizer.availability();
-      this.isAvailable = availability === 'available';
+      const availability = await Summarizer.availability();
+      this.isAvailable = availability !== 'unavailable';
 
       if (!this.isAvailable) {
         console.warn('Chrome Summarizer not available:', availability);
@@ -71,7 +71,7 @@ class SummarizerService {
         this.destroy();
       }
 
-      this.summarizer = await window.ai.summarizer.create({
+      this.summarizer = await Summarizer.create({
         type: finalConfig.type,
         format: finalConfig.format,
         length: finalConfig.length,
