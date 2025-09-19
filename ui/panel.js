@@ -1,123 +1,68 @@
 /**
- * TonePilot Panel - Main UI Controller
- * Manages the Chrome extension side panel interface
+ * TonePilot Panel - Main UI Controller (Refactored)
+ * Manages the Chrome extension side panel interface using modular architecture
  */
 
-// SemanticRouter will be available as a window global from semanticRouting.js
-
-// Constants
-const CONSTANTS = {
-  DEFAULTS: {
-    MAX_CHARACTERS: 300,
-    FORMALITY_TOGGLE: false,
-    ROUTER_TIMEOUT: 3000,
-    INITIALIZATION_TIMEOUT: 100
-  },
-  LIMITS: {
-    MAX_TEXT_LENGTH: 4000,
-    MIN_CHARACTERS: 50,
-    MAX_CHARACTERS: 1000
-  },
-  STATUS_TYPES: {
-    LOADING: 'loading',
-    READY: 'ready',
-    ERROR: 'error',
-    WARNING: 'warning'
-  },
-  ERROR_TYPES: {
-    SUCCESS: 'success',
-    WARNING: 'warning',
-    ERROR: 'error'
-  }
-};
-
-/**
- * Main TonePilot Panel class
- * Handles UI interactions, semantic routing, and extension functionality
- */
 class TonePilotPanel {
   constructor() {
-    this.initializeProperties();
-    this.initializeElements();
-    this.bindEvents();
+    this.initializeManagers();
     this.initialize().catch(this.handleFatalError.bind(this));
   }
 
   /**
-   * Initialize class properties with default values
+   * Initialize manager instances
    */
-  initializeProperties() {
-    // Core dependencies
-    this.storage = new StorageManager();
+  initializeManagers() {
+    try {
+      // Initialize core managers
+      this.stateManager = new window.TonePilotStateManager();
+      this.uiManager = new window.TonePilotUIManager(this.stateManager);
+      this.messageHandler = new window.TonePilotMessageHandler(this.stateManager, this.uiManager);
+      this.settingsManager = new window.TonePilotSettingsManager(this.stateManager, this.uiManager);
+      this.aiServicesManager = new window.TonePilotAIServicesManager(this.stateManager, this.uiManager);
 
-    // State management
-    this.state = {
-      currentSelection: null,
-      currentResults: null,
-      routerReady: false,
-      capturedImageData: null,
-      selectedMediaIds: new Set(),
-      selectedMediaItems: new Map(),
-      selectedMediaArray: [],
-      currentMaxCharacters: CONSTANTS.DEFAULTS.MAX_CHARACTERS,
-      currentFormalityToggle: CONSTANTS.DEFAULTS.FORMALITY_TOGGLE
-    };
+      // Legacy storage for backward compatibility
+      this.storage = window.StorageManager ? new window.StorageManager() : null;
 
-    // UI element references
-    this.elements = {};
-  }
-
-  /**
-   * Initialize DOM element references
-   * Validates that all required elements exist
-   */
-  initializeElements() {
-    const elementIds = [
-      'status', 'inputText', 'loading', 'error',
-      'resultSection', 'resultContent', 'queryDisplay', 'replaceBtn', 'copyBtn', 'websiteInfo',
-      'websiteName', 'websiteUrl', 'selectedTextDisplay', 'selectedTextContent',
-      'textInputWrapper', 'sourcesPanel', 'mediaGrid',
-      'mediaCount', 'selectMediaBtn', 'selectedMediaDisplay', 'selectedMediaGrid',
-      'settingsBtn', 'settingsPopup', 'closeSettingsBtn', 'saveSettingsBtn',
-      'maxCharactersInput', 'formalityTogglePopup', 'cropBtn', 'submitBtn'
-    ];
-
-    const selectors = {
-      inputContainer: '.input-container'
-    };
-
-    // Initialize element references
-    elementIds.forEach(id => {
-      this.elements[id] = document.getElementById(id);
-      if (!this.elements[id]) {
-        console.warn(`Element with id '${id}' not found`);
-      }
-    });
-
-    // Initialize selector-based elements
-    Object.entries(selectors).forEach(([key, selector]) => {
-      this.elements[key] = document.querySelector(selector);
-      if (!this.elements[key]) {
-        console.warn(`Element with selector '${selector}' not found`);
-      }
-    });
+      console.log('✅ Managers initialized');
+    } catch (error) {
+      console.error('❌ Manager initialization failed:', error);
+      throw error;
+    }
   }
 
   /**
    * Main initialization method
-   * Sets up the extension and its components
    */
   async initialize() {
     try {
-      this.updateStatus(CONSTANTS.STATUS_TYPES.LOADING, 'Initializing...');
+      // Initialize UI elements first
+      const elementsReady = this.uiManager.initializeElements();
+      if (!elementsReady) {
+        throw new Error('Failed to initialize UI elements');
+      }
 
-      // Initialize storage
+      // Check Chrome API availability first
+      const apiStatus = this.checkChromeAPIAvailability();
+      this.updateStatusForAPIAvailability(apiStatus);
+
+      // Now we can update status
+      this.uiManager.updateStatus('loading', 'Initializing...');
+
+      // Bind events
+      this.bindEvents();
+
+      // Initialize managers in sequence
       await this.initializeStorage();
+      await this.settingsManager.initialize();
+      await this.messageHandler.initialize();
+      await this.aiServicesManager.initializeServices();
 
-      // Initialize UI components
+      // Final UI setup
       await this.initializeUIComponents();
 
-      this.updateStatus(CONSTANTS.STATUS_TYPES.READY, 'Ready');
+      this.uiManager.updateStatus('ready', 'Ready');
+      console.log('✅ TonePilot Panel initialized successfully');
 
     } catch (error) {
       this.handleInitializationError(error);
@@ -129,10 +74,14 @@ class TonePilotPanel {
    */
   async initializeStorage() {
     try {
-      await this.storage.initialize();
+      if (this.storage) {
+        await this.storage.initialize();
+        console.log('✅ Storage initialized');
+      } else {
+        console.warn('⚠️ Storage service not available');
+      }
     } catch (error) {
       console.warn('Storage initialization failed:', error);
-      // Continue without storage - extension should still work
     }
   }
 
@@ -141,9 +90,10 @@ class TonePilotPanel {
    */
   async initializeUIComponents() {
     try {
-      await this.loadSettings();
       this.updateWebsiteInfo();
       this.checkForCurrentSelection();
+      await this.loadPageMedia();
+      console.log('✅ UI components initialized');
     } catch (error) {
       console.error('UI component initialization failed:', error);
       throw error;
@@ -151,62 +101,22 @@ class TonePilotPanel {
   }
 
   /**
-   * Bind event listeners to UI elements
+   * Bind all event listeners
    */
   bindEvents() {
     try {
-      this.bindButtonEvents();
-      this.bindSettingsEvents();
+      // Bind UI events through UI manager
+      this.uiManager.bindEvents();
+
+      // Connect UI manager event handlers to panel methods
+      this.connectEventHandlers();
+
+      // Bind Chrome extension events
       this.bindChromeEvents();
-      this.bindDocumentEvents();
-      this.bindWindowEvents();
+
+      console.log('✅ Events bound successfully');
     } catch (error) {
       console.error('Event binding failed:', error);
-    }
-  }
-
-  /**
-   * Bind main button events
-   */
-  bindButtonEvents() {
-    const buttonEvents = [
-      { element: 'replaceBtn', handler: () => this.handleReplace() },
-      { element: 'copyBtn', handler: () => this.handleCopy() },
-      { element: 'selectMediaBtn', handler: () => this.handleSelectMedia() },
-      { element: 'cropBtn', handler: () => this.handleCrop() },
-      { element: 'submitBtn', handler: async () => await this.handleSubmit() }
-    ];
-
-    buttonEvents.forEach(({ element, handler }) => {
-      if (this.elements[element]) {
-        this.elements[element].addEventListener('click', handler);
-      }
-    });
-  }
-
-  /**
-   * Bind settings-related events
-   */
-  bindSettingsEvents() {
-    const settingsEvents = [
-      { element: 'settingsBtn', handler: () => this.openSettingsPopup() },
-      { element: 'closeSettingsBtn', handler: () => this.closeSettingsPopup() },
-      { element: 'saveSettingsBtn', handler: () => this.saveSettings() }
-    ];
-
-    settingsEvents.forEach(({ element, handler }) => {
-      if (this.elements[element]) {
-        this.elements[element].addEventListener('click', handler);
-      }
-    });
-
-    // Settings popup overlay click
-    if (this.elements.settingsPopup) {
-      this.elements.settingsPopup.addEventListener('click', (e) => {
-        if (e.target.classList.contains('settings-popup-overlay')) {
-          this.closeSettingsPopup();
-        }
-      });
     }
   }
 
@@ -214,18 +124,23 @@ class TonePilotPanel {
    * Bind Chrome extension events
    */
   bindChromeEvents() {
-    // Message listener for Chrome extension communication
-    chrome.runtime.onMessage.addListener((message) => {
-      this.handleChromeMessage(message);
-    });
+    // Main Chrome message listener
+    if (chrome?.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        this.messageHandler.handleMessage(message, sender, sendResponse);
+      });
+      console.log('✅ Chrome runtime message listener added');
+    } else {
+      console.warn('⚠️ Chrome runtime messaging not available');
+    }
 
-    // Tab update listeners
+    // Tab update listeners for website info
     if (chrome.tabs) {
       chrome.tabs.onActivated.addListener(() => {
         this.updateWebsiteInfo();
       });
 
-      chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+      chrome.tabs.onUpdated.addListener((_, changeInfo) => {
         if (changeInfo.status === 'complete') {
           this.updateWebsiteInfo();
         }
@@ -234,702 +149,77 @@ class TonePilotPanel {
   }
 
   /**
-   * Bind document events
+   * Connect UI manager event handlers to panel methods
    */
-  bindDocumentEvents() {
-    document.addEventListener('click', (e) => {
-      this.handleDocumentClick(e);
-    });
+  connectEventHandlers() {
+    // Override UI manager event handlers with panel methods
+    this.uiManager.handleCopy = () => this.handleCopy();
+    this.uiManager.handleReplace = () => this.handleReplace();
+    this.uiManager.handleSelectMedia = () => this.handleSelectMedia();
+    this.uiManager.handleCrop = () => this.handleCrop();
+    this.uiManager.handleSubmit = () => this.handleSubmit();
+    this.uiManager.handleOpenSettings = () => this.settingsManager.openSettings();
+    this.uiManager.handleCloseSettings = () => this.settingsManager.closeSettings();
+    this.uiManager.handleSaveSettings = () => this.settingsManager.handleSaveSettings();
+    this.uiManager.handleTabSwitch = (tab) => this.handleTabSwitch(tab);
+    this.uiManager.handleDocumentClick = (e) => this.handleDocumentClick(e);
   }
 
   /**
-   * Bind window events
+   * Handle text submission and processing
    */
-  bindWindowEvents() {
-    window.addEventListener('beforeunload', () => {
-      this.cleanup();
-    });
-  }
-
-  /**
-   * Handle Chrome extension messages
-   */
-  handleChromeMessage(message) {
+  async handleSubmit() {
     try {
-      console.log('Panel received message:', message);
+      const inputText = this.uiManager.getInputText();
+      const selectionState = this.stateManager.getSelectionState();
 
-      const messageHandlers = {
-        'newSelection': () => this.handleNewSelection(message.data),
-        'screenAreaSelected': () => this.handleScreenAreaSelected(message.data),
-        'clearSelection': () => this.handleClearSelection()
-      };
-
-      const handler = messageHandlers[message.action];
-      if (handler) {
-        handler();
+      if (!inputText.trim() && !selectionState.hasSelection) {
+        this.uiManager.showError('Please enter text or select text on the page');
+        return;
       }
-    } catch (error) {
-      console.error('Error handling Chrome message:', error);
-    }
-  }
 
-  /**
-   * Handle document click events
-   */
-  handleDocumentClick(e) {
-    try {
-      if (e.target.classList.contains('result-tab')) {
-        this.switchIndividualResultTab(e.target);
-      }
-      if (e.target.classList.contains('tab-btn')) {
-        this.handleTabSwitch(e.target);
-      }
-    } catch (error) {
-      console.error('Error handling document click:', error);
-    }
-  }
+      // Process text through AI services
+      const results = await this.aiServicesManager.processText(inputText, selectionState.currentSelection);
 
-  /**
-   * Handle fatal errors during initialization
-   */
-  handleFatalError(error) {
-    console.error('Fatal initialization error:', error);
-    this.updateStatus(CONSTANTS.STATUS_TYPES.ERROR, 'Critical Error');
-    this.showError('Failed to initialize TonePilot. Please refresh the page.');
-  }
+      // Update state and UI
+      this.stateManager.setState('currentResults', results);
+      this.uiManager.showResults(results, inputText);
 
-  /**
-   * Handle initialization errors
-   */
-  handleInitializationError(error) {
-    console.error('Initialization failed:', error);
-    this.updateStatus(CONSTANTS.STATUS_TYPES.ERROR, 'Initialization failed');
-    this.showError('Failed to initialize TonePilot. Please refresh the panel and try again.');
-  }
-
-  /**
-   * Cleanup resources
-   */
-  cleanup() {
-    console.log('🧹 Cleaning up panel resources');
-    // Add any cleanup logic here
-  }
-
-
-
-
-
-
-  /**
-   * Load settings from storage
-   */
-  async loadSettings() {
-    try {
-      if (!this.storage) return;
-
-      const formalityPreference = await this.storage.getSetting('formalityPreference', CONSTANTS.DEFAULTS.FORMALITY_TOGGLE);
-      const lengthPreference = await this.storage.getSetting('lengthPreference', CONSTANTS.DEFAULTS.MAX_CHARACTERS);
-      this.state.currentFormalityToggle = formalityPreference;
-      this.state.currentMaxCharacters = lengthPreference;
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-  }
-
-  /**
-   * Handle new text selection from content script
-   */
-  handleNewSelection(selectionData) {
-    try {
-      console.log('Panel received selection data:', selectionData);
-
-      this.state.currentSelection = selectionData;
-
-      // Update UI
-      this.updateSelectionDisplay(selectionData);
-
-      this.hideError();
-      this.hideResults();
-    } catch (error) {
-      console.error('Error handling new selection:', error);
-    }
-  }
-
-  /**
-   * Update selection display in UI
-   */
-  updateSelectionDisplay(selectionData) {
-    if (this.elements.selectedTextContent) {
-      this.elements.selectedTextContent.textContent = `"${selectionData.text}"`;
-    }
-
-    if (this.elements.selectedTextDisplay) {
-      this.elements.selectedTextDisplay.style.display = 'block';
-    }
-
-    if (this.elements.inputContainer) {
-      this.elements.inputContainer.classList.add('has-selected-text');
-    }
-  }
-
-
-
-  /**
-   * Handle semantic routing
-   */
-  async handleRouting() {
-    const inputText = this.getInputText();
-    const selectedText = this.getSelectedText();
-    const hasSelection = Boolean(selectedText);
-
-    if (!inputText && !hasSelection) {
-      this.showError('Please select text or type an instruction.');
-      return;
-    }
-
-    if (!this.state.routerReady) {
-      console.log('⚠️ Semantic router not ready, using fallback rewrite');
-      return this.handleRewrite();
-    }
-
-    try {
-      const routeQuery = inputText || 'revise this text';
-      const result = await this.performSemanticRouting(routeQuery);
-
-      this.displayRoutingResult(result, hasSelection ? selectedText : inputText, inputText);
-      this.executeRoutingResult(result, hasSelection, selectedText, inputText);
-
-    } catch (error) {
-      this.handleRoutingError(error);
-    }
-  }
-
-  /**
-   * Get input text from textarea
-   */
-  getInputText() {
-    return this.elements.inputText?.value?.trim() || '';
-  }
-
-  /**
-   * Get selected text from state
-   */
-  getSelectedText() {
-    return this.state.currentSelection?.text?.trim() || '';
-  }
-
-  /**
-   * Perform semantic routing
-   */
-  async performSemanticRouting(query) {
-    if (typeof routeIntent !== 'function') {
-      throw new Error('Semantic routing not available');
-    }
-
-    console.log('🔍 Routing query:', query);
-    const result = await routeIntent(query);
-    const fields = typeof normalizeFields === 'function'
-      ? normalizeFields(query, result.intent)
-      : { text: query };
-
-    console.log('🎯 Routing result:', result);
-    console.log('📋 Normalized fields:', fields);
-
-    return { ...result, fields };
-  }
-
-  /**
-   * Display routing result in UI
-   */
-  displayRoutingResult(result, text, inputTextForDisplay = '') {
-    const routingInfo = this.formatRoutingInfo(result, text);
-
-    if (this.elements.resultContent) {
-      this.elements.resultContent.innerHTML = `
-        <pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px;">
-          ${routingInfo}
-        </pre>
-      `;
-    }
-
-    this.showResults({ primary: routingInfo, alternatives: [] }, inputTextForDisplay);
-  }
-
-  /**
-   * Format routing information for display
-   */
-  formatRoutingInfo(result, text) {
-    const truncatedText = text.length > 100 ? `${text.substring(0, 100)}...` : text;
-
-    return `🎯 Intent: ${result.intent} (confidence: ${result.score})
-📊 Scores: ${JSON.stringify(result.averages, null, 2)}
-📝 Text: "${truncatedText}"
-⚙️ Fields: ${JSON.stringify(result.fields, null, 2)}`;
-  }
-
-  /**
-   * Execute routing result based on intent
-   */
-  executeRoutingResult(result, hasSelection, selectedText, inputText) {
-    const intentHandlers = {
-      'proofread': () => this.handleProofreadFlow(hasSelection ? selectedText : inputText),
-      'revise': () => this.handleReviseFlow(hasSelection ? selectedText : inputText, result.fields?.goal),
-      'draft': () => this.handleDraftFlow(inputText),
-      'default': () => {
-        this.showError('Intent unclear. Try starting with "Proofread...", "Revise...", or "Draft..."', CONSTANTS.ERROR_TYPES.WARNING);
-        if (hasSelection) this.handleRewrite();
-      }
-    };
-
-    const handler = intentHandlers[result.intent] || intentHandlers.default;
-    handler();
-  }
-
-  /**
-   * Handle routing errors
-   */
-  handleRoutingError(error) {
-    console.error('❌ Routing failed:', error);
-    this.showError('Routing failed. Trying basic rewrite instead.', CONSTANTS.ERROR_TYPES.WARNING);
-    this.handleRewrite();
-  }
-
-  /**
-   * Handle proofread flow
-   */
-  async handleProofreadFlow(text) {
-    console.log('📝 Proofread flow:', text);
-    this.showError(`Proofread intent detected for: "${this.truncateText(text)}"`, CONSTANTS.ERROR_TYPES.SUCCESS);
-  }
-
-  /**
-   * Handle revise flow
-   */
-  async handleReviseFlow(text, goal) {
-    console.log('✏️ Revise flow:', text, 'Goal:', goal);
-    const goalText = goal ? ` (goal: ${goal})` : '';
-    this.showError(`Revise intent detected${goalText} for: "${this.truncateText(text)}"`, CONSTANTS.ERROR_TYPES.SUCCESS);
-  }
-
-  /**
-   * Handle draft flow
-   */
-  async handleDraftFlow(instructions) {
-    console.log('📄 Draft flow:', instructions);
-    this.showError(`Draft intent detected for: "${this.truncateText(instructions)}"`, CONSTANTS.ERROR_TYPES.SUCCESS);
-  }
-
-  /**
-   * Truncate text for display
-   */
-  truncateText(text, maxLength = 50) {
-    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
-  }
-
-  /**
-   * Handle rewrite functionality
-   */
-  async handleRewrite() {
-    const text = this.state.currentSelection?.text || this.getInputText();
-    const inputText = this.getInputText(); // Only get textarea input for display
-
-    if (!text) {
-      this.showError('Please select text on the page or enter text to rewrite.');
-      return;
-    }
-
-    if (text.length > CONSTANTS.LIMITS.MAX_TEXT_LENGTH) {
-      this.showError(`Text is too long. Please keep it under ${CONSTANTS.LIMITS.MAX_TEXT_LENGTH} characters.`);
-      return;
-    }
-
-    try {
-      this.showLoading();
-      this.hideError();
-
-      const context = this.buildContext();
-
-      // Create mock results for demonstration
-      const results = this.createMockResults(text);
-
-      this.state.currentResults = results;
-      this.showResults(results, inputText); // Pass only textarea input for display
-
-      await this.saveRewriteToHistory(text, results, context);
-
-    } catch (error) {
-      this.handleRewriteError(error);
-    } finally {
-      this.hideLoading();
-    }
-  }
-
-
-  /**
-   * Build context for rewriting
-   */
-  buildContext() {
-    const context = this.state.currentSelection || {};
-
-    if (this.state.capturedImageData) {
-      context.image = this.state.capturedImageData;
-    }
-
-    return context;
-  }
-
-  /**
-   * Create mock results for testing
-   */
-  createMockResults(text) {
-    return {
-      primary: `${text}`,
-      alternatives: [
-        `${text}`,
-        `${text}`
-      ],
-      metadata: {
-        timestamp: new Date().toISOString()
-      }
-    };
-  }
-
-  /**
-   * Save rewrite to history
-   */
-  async saveRewriteToHistory(originalText, results, context) {
-    try {
+      // Save to history if available
       if (this.storage) {
-        await this.storage.saveRewrite({
-          originalText,
-          rewrittenText: results.primary,
-          domain: context.domain || 'unknown',
-          metadata: results.metadata
+        await this.storage.saveRewriteHistory({
+          input: inputText,
+          selection: selectionState.currentSelection?.text || '',
+          results: results,
+          timestamp: Date.now()
         });
       }
+
+      console.log('✅ Text processing completed');
+
     } catch (error) {
-      console.warn('Failed to save rewrite to history:', error);
+      console.error('❌ Submit handling failed:', error);
+      this.uiManager.showError(`Processing failed: ${error.message}`);
     }
   }
 
   /**
-   * Handle rewrite errors
+   * Handle copy button click
    */
-  handleRewriteError(error) {
-    console.error('Rewrite failed:', error);
+  async handleCopy() {
+    try {
+      const resultsState = this.stateManager.getResultsState();
 
-    const errorMessages = {
-      'downloading': 'AI model is downloading. Please try again in a moment.',
-      'too long': error.message,
-      'not available': 'AI model temporarily unavailable. Please try again.',
-      'default': 'Failed to rewrite text. Please try again.'
-    };
-
-    const errorType = Object.keys(errorMessages).find(key =>
-      error.message.includes(key)
-    ) || 'default';
-
-    const messageType = errorType === 'downloading' ? CONSTANTS.ERROR_TYPES.WARNING : CONSTANTS.ERROR_TYPES.ERROR;
-    this.showError(errorMessages[errorType], messageType);
-  }
-
-
-  /**
-   * Update status display
-   */
-  updateStatus(type, text) {
-    if (this.elements.status) {
-      this.elements.status.className = `status-badge status-${type}`;
-      this.elements.status.textContent = text;
-    }
-  }
-
-  /**
-   * Show loading state
-   */
-  showLoading() {
-    if (this.elements.loading) {
-      this.elements.loading.style.display = 'flex';
-    }
-    if (this.elements.submitBtn) {
-      this.elements.submitBtn.disabled = true;
-      this.elements.submitBtn.innerHTML = `
-        <img src="../icons/loading.gif" alt="Loading..." style="width:16px; height:16px;" />
-      `;
-    }
-  }
-
-  /**
-   * Hide loading state
-   */
-  hideLoading() {
-    if (this.elements.loading) {
-      this.elements.loading.style.display = 'none';
-    }
-    if (this.elements.submitBtn) {
-      this.elements.submitBtn.disabled = false;
-      this.elements.submitBtn.innerHTML = `
-        <img src="../icons/submit.png" alt="Submit" style="width:16px; height:16px;" />
-      `;
-    }
-  }
-
-  /**
-   * Show error message
-   */
-  showError(message, type = CONSTANTS.ERROR_TYPES.ERROR) {
-    if (this.elements.error) {
-      this.elements.error.textContent = message;
-      this.elements.error.style.display = 'block';
-      this.elements.error.className = `alert alert-${type}`;
-
-      if (type === CONSTANTS.ERROR_TYPES.SUCCESS || type === CONSTANTS.ERROR_TYPES.WARNING) {
-        setTimeout(() => this.hideError(), 4000);
+      if (!resultsState.hasResults) {
+        this.uiManager.showError('No results to copy');
+        return;
       }
-    }
-  }
 
-  /**
-   * Hide error message
-   */
-  hideError() {
-    if (this.elements.error) {
-      this.elements.error.style.display = 'none';
-    }
-  }
+      await this.messageHandler.copyToClipboard(resultsState.currentResults.primary);
 
-  /**
-   * Show results
-   */
-  showResults(results, inputText = '') {
-    // Always hide the original result section when we have textarea input
-    if (inputText && inputText.trim() !== '') {
-      if (this.elements.resultSection) {
-        this.elements.resultSection.classList.remove('visible');
-      }
-    } else {
-      if (this.elements.resultSection) {
-        this.elements.resultSection.classList.add('visible');
-      }
-    }
-
-    this.createNewResultSection(results, inputText);
-  }
-
-  /**
-   * Create a new complete result section for each submission
-   */
-  createNewResultSection(results, inputText) {
-    // Only create result containers when there's actual textarea input
-    if (!inputText || inputText.trim() === '') {
-      // For selected text without textarea input, use the original result display
-      if (this.elements.resultSection) {
-        this.elements.resultSection.classList.add('visible');
-      }
-      this.updateOriginalResultDisplay(results);
-      return;
-    }
-
-    // Create a container for all individual result sections if it doesn't exist
-    let resultsContainer = document.getElementById('allResultsContainer');
-    if (!resultsContainer) {
-      resultsContainer = document.createElement('div');
-      resultsContainer.id = 'allResultsContainer';
-      resultsContainer.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        gap: 0;
-      `;
-
-      // Insert after the main-content, before footer
-      const mainContent = document.querySelector('.main-content');
-      if (mainContent) {
-        mainContent.appendChild(resultsContainer);
-      }
-    }
-
-    const sectionId = `result-section-${Date.now()}`;
-
-    const resultSection = document.createElement('div');
-    resultSection.className = 'individual-result-section';
-    resultSection.style.cssText = `
-      margin-bottom: 24px;
-      overflow: hidden;
-    `;
-
-
-    resultSection.innerHTML = `
-      ${inputText ? `
-        <div class="query-display" style="
-          padding: 0px 10px;
-          border:none;
-        ">
-          <div class="query-text" style="
-            font-size: 20px;
-            font-weight:bold;
-            line-height: 1.5;
-            color: #e4e4e7;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-          ">${inputText}</div>
-        </div>
-      ` : ''}
-
-      <div class="result-tabs" style="
-        display: flex;
-        border-bottom: none;
-      ">
-        <button class="result-tab active" data-section="${sectionId}" data-tab="primary" style="
-          padding: 0px 12px;
-          border: none;
-          background: none;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
-          color:#B3B3B3 ;
-        ">Primary</button>
-        <button class="result-tab" data-section="${sectionId}" data-tab="alt1" style="
-          padding: 0px 12px;
-          border: none;
-          background: none;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
-          color: #6b7280;
-        ">Alternative 1</button>
-        <button class="result-tab" data-section="${sectionId}" data-tab="alt2" style="
-          padding: 0px 12px;
-          border: none;
-          background: none;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
-          color: #6b7280;
-        ">Alternative 2</button>
-      </div>
-
-      <div class="result-content" style="
-        padding: 20px;
-        white-space: pre-wrap;
-        line-height: 1.6;
-        color: #e4e4e7;
-        font-size: 15px;
-      ">${results.primary || ''}</div>
-      
-      <div class="result-actions" style="border-bottom: 0.05px solid rgb(109, 109, 109); padding-bottom: 20px;">
-          <button id="copyBtn" class="btn btn-secondary" style ="background:none">
-            <img src="../icons/copy.png" alt="Copy" style="width:10px; height:10px;" />
-          </button>
-      </div>
-    `;
-
-    // Store results data on the section for tab switching
-    resultSection.resultData = results;
-
-    resultsContainer.appendChild(resultSection);
-
-    // Scroll to the new result
-    resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-
-  /**
-   * Update original result display for cases without textarea input
-   */
-  updateOriginalResultDisplay(results) {
-    // Hide the query display since there's no textarea input
-    if (this.elements.queryDisplay) {
-      this.elements.queryDisplay.style.display = 'none';
-    }
-
-    // Update the original result content
-    if (this.elements.resultContent) {
-      this.elements.resultContent.textContent = results.primary || '';
-    }
-
-    // Update tabs to show alternatives if available
-    this.updateResultTabs(results);
-  }
-
-  /**
-   * Switch tabs within individual result sections
-   */
-  switchIndividualResultTab(tabElement) {
-    const sectionId = tabElement.dataset.section;
-    const tabName = tabElement.dataset.tab;
-
-    // Find the parent section
-    const section = tabElement.closest('.individual-result-section');
-    if (!section || !section.resultData) return;
-
-    // Update tab styles within this section only
-    const sectionTabs = section.querySelectorAll('.result-tab');
-    sectionTabs.forEach(tab => {
-      if (tab.dataset.tab === tabName) {
-        tab.style.color = '#3b82f6';
-        tab.style.borderBottomColor = '#3b82f6';
-      } else {
-        tab.style.color = '#6b7280';
-        tab.style.borderBottomColor = 'transparent';
-      }
-    });
-
-    // Update content within this section only
-    const contentElement = section.querySelector('.result-content');
-    if (contentElement) {
-      let content = '';
-      if (tabName === 'primary') {
-        content = section.resultData.primary || '';
-      } else if (tabName === 'alt1') {
-        content = section.resultData.alternatives?.[0] || '';
-      } else if (tabName === 'alt2') {
-        content = section.resultData.alternatives?.[1] || '';
-      }
-      contentElement.textContent = content;
-    }
-  }
-
-  /**
-   * Hide results
-   */
-  hideResults() {
-    if (this.elements.resultSection) {
-      this.elements.resultSection.classList.remove('visible');
-    }
-  }
-
-  /**
-   * Update result tabs visibility
-   */
-  updateResultTabs(results) {
-    const tabs = document.querySelectorAll('.result-tab');
-    if (tabs.length >= 3) {
-      tabs[0].style.display = 'block';
-      tabs[1].style.display = results.alternatives?.[0] ? 'block' : 'none';
-      tabs[2].style.display = results.alternatives?.[1] ? 'block' : 'none';
-    }
-
-    this.switchResultTab('primary');
-  }
-
-  /**
-   * Switch result tab
-   */
-  switchResultTab(tabName) {
-    document.querySelectorAll('.result-tab').forEach(tab => {
-      tab.classList.toggle('active', tab.dataset.tab === tabName);
-    });
-
-    let content = '';
-    if (tabName === 'primary') {
-      content = this.state.currentResults?.primary || '';
-    } else if (tabName === 'alt1') {
-      content = this.state.currentResults?.alternatives?.[0] || '';
-    } else if (tabName === 'alt2') {
-      content = this.state.currentResults?.alternatives?.[1] || '';
-    }
-
-    if (this.elements.resultContent) {
-      this.elements.resultContent.textContent = content;
+    } catch (error) {
+      console.error('❌ Copy failed:', error);
+      this.uiManager.showError('Copy failed');
     }
   }
 
@@ -937,170 +227,66 @@ class TonePilotPanel {
    * Handle replace button click
    */
   async handleReplace() {
-    if (!this.state.currentResults || !this.state.currentSelection) {
-      this.showError('No text to replace. Please select text on the page first.');
-      return;
-    }
-
-    const activeTab = document.querySelector('.result-tab.active')?.dataset.tab;
-    const textToReplace = this.getTextToReplace(activeTab);
-
     try {
-      const success = await this.replaceTextInPage(textToReplace);
+      const resultsState = this.stateManager.getResultsState();
+      const selectionState = this.stateManager.getSelectionState();
 
-      if (success) {
-        this.showError('Text replaced successfully!', CONSTANTS.ERROR_TYPES.SUCCESS);
-        setTimeout(() => this.hideError(), 2000);
-      } else {
-        this.showError('Failed to replace text. Please try selecting the text again.');
+      if (!resultsState.hasResults) {
+        this.uiManager.showError('No results to replace with');
+        return;
       }
-    } catch (error) {
-      console.error('Replace failed:', error);
-      this.showError('Failed to replace text. Please ensure the original page is still active.');
-    }
-  }
 
-  /**
-   * Get text to replace based on active tab
-   */
-  getTextToReplace(activeTab) {
-    const tabMapping = {
-      'primary': this.state.currentResults?.primary,
-      'alt1': this.state.currentResults?.alternatives?.[0],
-      'alt2': this.state.currentResults?.alternatives?.[1]
-    };
-
-    return tabMapping[activeTab] || '';
-  }
-
-  /**
-   * Replace text in the page using Chrome extension API
-   */
-  async replaceTextInPage(newText) {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const response = await chrome.tabs.sendMessage(tabs[0].id, {
-      action: 'replaceSelection',
-      newText: newText
-    });
-
-    return response?.success || false;
-  }
-
-  /**
-   * Handle copy button click
-   */
-  async handleCopy() {
-    const activeTab = document.querySelector('.result-tab.active')?.dataset.tab;
-    const textToCopy = this.getTextToReplace(activeTab);
-
-    try {
-      await navigator.clipboard.writeText(textToCopy);
-      this.showError('Text copied to clipboard!', CONSTANTS.ERROR_TYPES.SUCCESS);
-      setTimeout(() => this.hideError(), 2000);
-    } catch (error) {
-      console.error('Copy failed:', error);
-      this.showError('Failed to copy text to clipboard.');
-    }
-  }
-
-  /**
-   * Clear selected text
-   */
-  clearSelectedText() {
-    if (this.elements.selectedTextDisplay) {
-      this.elements.selectedTextDisplay.style.display = 'none';
-    }
-
-    if (this.elements.inputContainer) {
-      this.elements.inputContainer.classList.remove('has-selected-text');
-    }
-
-
-    this.state.currentSelection = null;
-  }
-
-  /**
-   * Handle clear selection from content script
-   */
-  handleClearSelection() {
-    console.log('Panel clearing selection due to deselection on webpage');
-    this.clearSelectedText();
-  }
-
-
-
-
-  /**
-   * Update website information in the UI
-   */
-  async updateWebsiteInfo() {
-    try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      const currentTab = tabs[0];
-
-      if (currentTab?.url) {
-        const url = new URL(currentTab.url);
-        this.displayWebsiteInfo(currentTab.title || url.hostname, url.hostname);
+      if (!selectionState.hasSelection) {
+        this.uiManager.showError('No text selected for replacement');
+        return;
       }
+
+      await this.messageHandler.replaceText(resultsState.currentResults.primary);
+
     } catch (error) {
-      console.error('Error getting website info:', error);
-      this.hideWebsiteInfo();
+      console.error('❌ Replace failed:', error);
+      this.uiManager.showError('Replace failed');
     }
   }
 
   /**
-   * Display website information
+   * Handle select media button click
    */
-  displayWebsiteInfo(title, hostname) {
-    if (this.elements.websiteName) {
-      this.elements.websiteName.textContent = title;
-    }
-
-    if (this.elements.websiteUrl) {
-      this.elements.websiteUrl.textContent = hostname;
-    }
-
-    if (this.elements.websiteInfo) {
-      this.elements.websiteInfo.style.display = 'flex';
-    }
-  }
-
-  /**
-   * Hide website information
-   */
-  hideWebsiteInfo() {
-    if (this.elements.websiteInfo) {
-      this.elements.websiteInfo.style.display = 'none';
-    }
-  }
-
-  /**
-   * Check for current selection on page load
-   */
-  async checkForCurrentSelection() {
+  async handleSelectMedia() {
     try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      const currentTab = tabs[0];
-
-      if (currentTab?.id) {
-        const response = await chrome.tabs.sendMessage(currentTab.id, {
-          action: 'getCurrentSelection'
-        });
-
-        if (response?.data) {
-          this.handleNewSelection(response.data);
-        }
-      }
+      await this.messageHandler.requestCapture();
     } catch (error) {
-      console.log('No current selection or content script not ready');
+      console.error('❌ Media selection failed:', error);
+      this.uiManager.showError('Media selection failed');
     }
   }
 
   /**
-   * Handle tab switching
+   * Handle crop button click
    */
-  handleTabSwitch(tabButton) {
-    // Remove active class from all tabs
+  handleCrop() {
+    console.log('🖼️ Crop functionality not yet implemented');
+    this.uiManager.showError('Crop feature coming soon');
+  }
+
+  /**
+   * Handle result tab switch (for individual results)
+   */
+  handleTabSwitch(tab) {
+    console.log('📑 Result tab switched:', tab.textContent);
+
+    // Update active tab display
+    document.querySelectorAll('.result-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  }
+
+  /**
+   * Handle main tab switch (between Assistant/Sources panels)
+   */
+  handleMainTabSwitch(tabButton) {
+    console.log('📑 Main tab switched:', tabButton.textContent);
+
+    // Remove active class from all main tabs
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.classList.remove('active');
     });
@@ -1112,7 +298,10 @@ class TonePilotPanel {
     const tabText = tabButton.textContent.toLowerCase();
     if (tabText.includes('sources') || tabText.includes('media')) {
       this.showSourcesPanel();
-      this.loadPageMedia();
+      // Refresh media when media tab is shown
+      if (tabText.includes('media')) {
+        this.loadPageMedia();
+      }
     } else {
       this.hideSourcesPanel();
     }
@@ -1122,736 +311,486 @@ class TonePilotPanel {
    * Show sources panel
    */
   showSourcesPanel() {
-    if (this.elements.sourcesPanel) {
-      this.elements.sourcesPanel.style.display = 'block';
+    if (this.uiManager.elements.sourcesPanel) {
+      this.uiManager.elements.sourcesPanel.style.display = 'block';
     }
-
-    if (this.elements.textInputWrapper) {
-      this.elements.textInputWrapper.style.display = 'none';
-    }
-
   }
 
   /**
    * Hide sources panel
    */
   hideSourcesPanel() {
-    if (this.elements.sourcesPanel) {
-      this.elements.sourcesPanel.style.display = 'none';
+    if (this.uiManager.elements.sourcesPanel) {
+      this.uiManager.elements.sourcesPanel.style.display = 'none';
     }
-
-    if (this.elements.textInputWrapper) {
-      this.elements.textInputWrapper.style.display = 'block';
-    }
-
   }
 
   /**
-   * Load page media
+   * Handle document click events
    */
-  async loadPageMedia() {
-    this.clearMediaSelection();
+  handleDocumentClick(event) {
+    try {
+      // Handle tab clicks
+      if (event.target.classList.contains('result-tab')) {
+        this.handleTabSwitch(event.target);
+      }
 
+      if (event.target.classList.contains('tab-btn')) {
+        this.handleMainTabSwitch(event.target);
+      }
+
+      // Close popups when clicking outside
+      if (this.uiManager.elements.settingsPopup &&
+          !this.uiManager.elements.settingsPopup.contains(event.target) &&
+          !this.uiManager.elements.settingsBtn.contains(event.target)) {
+        this.settingsManager.closeSettings();
+      }
+    } catch (error) {
+      console.error('❌ Document click handling failed:', error);
+    }
+  }
+
+  /**
+   * Update website information
+   */
+  async updateWebsiteInfo() {
     try {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
       const currentTab = tabs[0];
 
-      if (currentTab?.id) {
-        const response = await chrome.tabs.sendMessage(currentTab.id, {
-          action: 'getPageMedia'
-        });
+      if (currentTab) {
+        const websiteInfo = {
+          name: this.extractDomainName(currentTab.url),
+          url: currentTab.url,
+          title: currentTab.title
+        };
 
-        if (response?.media) {
-          this.displayMedia(response.media);
-        }
+        // Update UI through message handler
+        this.messageHandler.handleWebsiteInfo(websiteInfo);
       }
     } catch (error) {
-      console.error('Failed to load page media:', error);
-      this.displayMediaError();
+      console.error('Failed to update website info:', error);
     }
   }
 
   /**
-   * Display media in grid
+   * Extract domain name from URL
    */
-  displayMedia(mediaArray) {
-    if (this.elements.mediaCount) {
-      this.elements.mediaCount.textContent = `${mediaArray.length} items`;
+  extractDomainName(url) {
+    try {
+      const domain = new URL(url).hostname;
+      return domain.replace('www.', '');
+    } catch {
+      return 'Unknown';
     }
+  }
 
-    if (!this.elements.mediaGrid) return;
+  /**
+   * Check for current text selection
+   */
+  async checkForCurrentSelection() {
+    try {
+      // Request current selection from content script
+      await this.messageHandler.sendToContentScript('getCurrentSelection');
+    } catch (error) {
+      console.log('No current selection or content script not ready');
+    }
+  }
 
-    if (mediaArray.length === 0) {
-      this.elements.mediaGrid.innerHTML = '<div style="text-align: center; color: #71717a; padding: 20px;">No media found on this page.</div>';
+  /**
+   * Load page media from content script
+   */
+  async loadPageMedia() {
+    try {
+      console.log('🔍 Requesting page media from content script...');
+      const response = await this.messageHandler.sendToContentScript('getPageMedia');
+      console.log('📦 Content script response:', response);
+
+      if (response && response.media) {
+        this.displayPageMedia(response.media);
+        console.log(`📸 Loaded ${response.media.length} media items`);
+      } else {
+        console.log('⚠️ No media data in response');
+        // Show empty state
+        this.displayPageMedia([]);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load page media:', error);
+      // Show empty state on error
+      this.displayPageMedia([]);
+    }
+  }
+
+  /**
+   * Display page media in the media grid
+   */
+  displayPageMedia(mediaItems) {
+    const mediaGrid = this.uiManager.elements.mediaGrid;
+    const mediaCount = this.uiManager.elements.mediaCount;
+
+    if (!mediaGrid || !mediaCount) {
+      console.warn('Media grid elements not found');
       return;
     }
 
-    this.elements.mediaGrid.innerHTML = '';
-    mediaArray.forEach((media) => {
+    // Update count
+    mediaCount.textContent = `${mediaItems.length} items`;
+
+    // Clear existing media
+    mediaGrid.innerHTML = '';
+
+    if (mediaItems.length === 0) {
+      mediaGrid.innerHTML = '<div style="text-align: center; color: #71717a; padding: 20px;">No media found on this page</div>';
+      return;
+    }
+
+    // Create media items
+    mediaItems.forEach((media) => {
       const mediaItem = this.createMediaItem(media);
-      this.elements.mediaGrid.appendChild(mediaItem);
+      mediaGrid.appendChild(mediaItem);
     });
+
+    // Store media for later reference
+    this.stateManager.setState('pageMedia', mediaItems);
   }
 
   /**
-   * Create media item element
+   * Create a media item element
    */
   createMediaItem(media) {
     const mediaItem = document.createElement('div');
     mediaItem.className = 'media-item';
-    mediaItem.dataset.mediaId = media.elementId;
-    mediaItem.onclick = () => this.handleMediaClick(media, mediaItem);
-    mediaItem.title = `Click to scroll to this ${media.type} on the page`;
+    mediaItem.setAttribute('data-media-id', media.elementId);
 
-    const thumbnailHtml = media.type === 'video'
-      ? `<img class="media-thumbnail" src="${media.poster || media.src}" alt="${media.alt}" onerror="this.style.display='none'">
-         <div class="video-overlay">▶</div>`
-      : `<img class="media-thumbnail" src="${media.src}" alt="${media.alt}" onerror="this.style.display='none'">`;
+    let thumbnail;
+    if (media.type === 'video') {
+      thumbnail = media.poster || media.src;
+    } else {
+      thumbnail = media.src;
+    }
 
     mediaItem.innerHTML = `
-      ${thumbnailHtml}
+      <img class="media-thumbnail" src="${thumbnail}" alt="${media.alt}"
+           onerror="this.src='data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"120\" height=\"80\" viewBox=\"0 0 120 80\"><rect width=\"120\" height=\"80\" fill=\"%23404040\"/><text x=\"60\" y=\"45\" text-anchor=\"middle\" fill=\"%23999\" font-size=\"12\">No Preview</text></svg>'">
       <div class="media-info">
         <div class="media-type">${media.type}</div>
         <div class="media-title">${media.alt}</div>
-        <div class="media-dimensions">${media.width} × ${media.height}</div>
+        <div class="media-dimensions">${media.width}×${media.height}</div>
       </div>
     `;
+
+    // Add click handler for media selection
+    mediaItem.addEventListener('click', () => this.handleMediaItemClick(media, mediaItem));
 
     return mediaItem;
   }
 
   /**
-   * Display media loading error
+   * Handle media item click for selection
    */
-  displayMediaError() {
-    if (this.elements.mediaGrid) {
-      this.elements.mediaGrid.innerHTML = '<div style="text-align: center; color: #71717a; padding: 20px;">Failed to load media from this page.</div>';
+  handleMediaItemClick(media, element) {
+    const isSelected = element.classList.contains('selected');
+
+    if (isSelected) {
+      // Deselect
+      element.classList.remove('selected');
+      this.stateManager.state.selectedMediaIds.delete(media.elementId);
+      this.stateManager.state.selectedMediaItems.delete(media.elementId);
+    } else {
+      // Select
+      element.classList.add('selected');
+      this.stateManager.state.selectedMediaIds.add(media.elementId);
+      this.stateManager.state.selectedMediaItems.set(media.elementId, media);
     }
+
+    // Update selected media array
+    this.stateManager.state.selectedMediaArray = Array.from(this.stateManager.state.selectedMediaItems.values());
+
+    // Update display
+    this.updateSelectedMediaDisplay();
+
+    console.log(`📸 Media ${isSelected ? 'deselected' : 'selected'}:`, media.alt);
   }
 
   /**
-   * Handle media item click
+   * Update selected media display
    */
-  async handleMediaClick(media, mediaItem) {
-    // Toggle selection
-    if (mediaItem.classList.contains('selected')) {
+  updateSelectedMediaDisplay() {
+    const selectedMediaDisplay = this.uiManager.elements.selectedMediaDisplay;
+    const selectedMediaGrid = this.uiManager.elements.selectedMediaGrid;
+
+    if (!selectedMediaDisplay || !selectedMediaGrid) return;
+
+    const selectedCount = this.stateManager.state.selectedMediaIds.size;
+
+    if (selectedCount === 0) {
+      selectedMediaDisplay.style.display = 'none';
+      return;
+    }
+
+    selectedMediaDisplay.style.display = 'block';
+    selectedMediaGrid.innerHTML = '';
+
+    // Add selected media thumbnails
+    this.stateManager.state.selectedMediaArray.forEach(media => {
+      const thumb = document.createElement('div');
+      thumb.className = 'selected-media-item';
+      thumb.innerHTML = `
+        <img class="selected-media-thumbnail" src="${media.src}" alt="${media.alt}">
+        <button class="selected-media-item-remove" onclick="window.tonePilotPanel.removeSelectedMedia('${media.elementId}')">×</button>
+      `;
+      selectedMediaGrid.appendChild(thumb);
+    });
+
+    console.log(`📸 Updated selected media display: ${selectedCount} items`);
+  }
+
+  /**
+   * Remove selected media item
+   */
+  removeSelectedMedia(elementId) {
+    // Remove from state
+    this.stateManager.state.selectedMediaIds.delete(elementId);
+    this.stateManager.state.selectedMediaItems.delete(elementId);
+    this.stateManager.state.selectedMediaArray = Array.from(this.stateManager.state.selectedMediaItems.values());
+
+    // Update UI
+    const mediaItem = document.querySelector(`[data-media-id="${elementId}"]`);
+    if (mediaItem) {
       mediaItem.classList.remove('selected');
-      this.removeFromSelectedMedia(media.elementId);
-    } else {
-      mediaItem.classList.add('selected');
-      this.addToSelectedMedia(media);
     }
 
-    this.updateSelectButtonVisibility();
-    await this.scrollToMediaOnPage(media);
+    this.updateSelectedMediaDisplay();
   }
 
   /**
-   * Add media to selection
+   * Handle initialization errors
    */
-  addToSelectedMedia(media) {
-    this.state.selectedMediaIds.add(media.elementId);
-    this.state.selectedMediaItems.set(media.elementId, media);
+  handleInitializationError(error) {
+    console.error('❌ Initialization failed:', error);
+    this.uiManager.updateStatus('error', 'Initialization Failed');
+    this.uiManager.showError(`Initialization failed: ${error.message}`);
   }
 
   /**
-   * Remove media from selection
+   * Handle fatal errors
    */
-  removeFromSelectedMedia(elementId) {
-    this.state.selectedMediaIds.delete(elementId);
-    this.state.selectedMediaItems.delete(elementId);
-  }
+  handleFatalError(error) {
+    console.error('💥 Fatal error:', error);
 
-  /**
-   * Update select button visibility
-   */
-  updateSelectButtonVisibility() {
-    if (!this.elements.selectMediaBtn) return;
-
-    if (this.state.selectedMediaIds.size > 0) {
-      this.elements.selectMediaBtn.style.display = 'inline-block';
-      const count = this.state.selectedMediaIds.size;
-      this.elements.selectMediaBtn.textContent = `Select Media (${count})`;
-    } else {
-      this.elements.selectMediaBtn.style.display = 'none';
-      this.elements.selectMediaBtn.textContent = 'Select Media';
+    // Try to show error in UI if possible
+    if (this.uiManager) {
+      this.uiManager.updateStatus('error', 'Fatal Error');
+      this.uiManager.showError('A fatal error occurred. Please reload the extension.');
     }
   }
 
   /**
-   * Scroll to media on page
+   * Cleanup resources
    */
-  async scrollToMediaOnPage(media) {
-    if (!media.elementId) return;
-
+  cleanup() {
     try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      const currentTab = tabs[0];
-
-      if (currentTab?.id) {
-        await chrome.tabs.sendMessage(currentTab.id, {
-          action: 'scrollToMedia',
-          elementId: media.elementId
-        });
+      if (this.uiManager) {
+        this.uiManager.cleanup();
       }
+      if (this.messageHandler) {
+        this.messageHandler.cleanup();
+      }
+      console.log('🧹 Panel cleanup completed');
     } catch (error) {
-      console.error('Failed to scroll to media:', error);
-      this.showError('Media selected but failed to scroll', CONSTANTS.ERROR_TYPES.ERROR);
+      console.error('Cleanup error:', error);
     }
   }
 
   /**
-   * Clear media selection
+   * Check Chrome API availability
+   * @returns {Object} API availability status
    */
-  clearMediaSelection() {
-    if (this.elements.mediaGrid) {
-      const selectedItems = this.elements.mediaGrid.querySelectorAll('.media-item.selected');
-      selectedItems.forEach(item => item.classList.remove('selected'));
-    }
+  checkChromeAPIAvailability() {
+    const apis = {
+      runtime: Boolean(chrome?.runtime),
+      tabs: Boolean(chrome?.tabs),
+      storage: Boolean(chrome?.storage),
+      sidePanel: Boolean(chrome?.sidePanel),
+      contextMenus: Boolean(chrome?.contextMenus),
+      scripting: Boolean(chrome?.scripting),
+      ai: Boolean(window?.ai),
+      aiLanguageModel: Boolean(window?.ai?.languageModel),
+      aiRewriter: Boolean(window?.ai?.rewriter),
+      aiSummarizer: Boolean(window?.ai?.summarizer),
+      aiProofreader: Boolean(window?.ai?.proofreader)
+    };
 
-    this.state.selectedMediaIds.clear();
-    this.state.selectedMediaItems.clear();
-    this.updateSelectButtonVisibility();
+    const coreAPIs = ['runtime', 'tabs', 'storage'];
+    const extensionAPIs = ['sidePanel', 'contextMenus', 'scripting'];
+    const aiAPIs = ['ai', 'aiLanguageModel', 'aiRewriter', 'aiSummarizer', 'aiProofreader'];
+
+    const coreAvailable = coreAPIs.every(api => apis[api]);
+    const extensionAvailable = extensionAPIs.every(api => apis[api]);
+    const aiAvailable = apis.ai && apis.aiLanguageModel;
+    const allAIAvailable = aiAPIs.every(api => apis[api]);
+
+    return {
+      apis,
+      coreAvailable,
+      extensionAvailable,
+      aiAvailable,
+      allAIAvailable,
+      isExtensionContext: coreAvailable && extensionAvailable,
+      summary: this.generateAPIStatusSummary(coreAvailable, extensionAvailable, aiAvailable, allAIAvailable)
+    };
   }
 
   /**
-   * Handle select media button click
+   * Generate API status summary
    */
-  handleSelectMedia() {
-    if (this.state.selectedMediaIds.size === 0) {
-      this.showError('No media selected', CONSTANTS.ERROR_TYPES.ERROR);
-      return;
-    }
-
-    // Switch back to Assistant tab
-    const assistantTab = document.querySelector('.tab-btn:first-child');
-    if (assistantTab) {
-      this.handleTabSwitch(assistantTab);
-    }
-
-    // Store selected media
-    const selectedMediaArray = Array.from(this.state.selectedMediaItems.values());
-    this.displaySelectedMediaInAssistant(selectedMediaArray);
-
-    const count = this.state.selectedMediaIds.size;
-    this.showError(`${count} media item${count > 1 ? 's' : ''} selected successfully!`, CONSTANTS.ERROR_TYPES.SUCCESS);
-  }
-
-  /**
-   * Display selected media in assistant tab
-   */
-  displaySelectedMediaInAssistant(mediaArray) {
-    this.state.selectedMediaArray = mediaArray;
-    this.refreshMediaDisplay();
-    console.log('Displaying selected media in assistant tab:', mediaArray);
-  }
-
-  /**
-   * Refresh media display
-   */
-  refreshMediaDisplay() {
-    const hasSelectedMedia = this.state.selectedMediaArray?.length > 0;
-    const hasCapturedImage = this.state.capturedImageData;
-
-    if (!hasSelectedMedia && !hasCapturedImage) {
-      if (this.elements.selectedMediaDisplay) {
-        this.elements.selectedMediaDisplay.style.display = 'none';
-      }
-      return;
-    }
-
-    if (this.elements.selectedMediaDisplay) {
-      this.elements.selectedMediaDisplay.style.display = 'block';
-    }
-
-    if (this.elements.selectedMediaGrid) {
-      this.elements.selectedMediaGrid.innerHTML = '';
-
-      // Add captured image first
-      if (hasCapturedImage) {
-        this.addCapturedImageToGrid();
-      }
-
-      // Add selected media
-      if (hasSelectedMedia) {
-        this.addSelectedMediaToGrid();
-      }
-    }
-  }
-
-  /**
-   * Add captured image to grid
-   */
-  addCapturedImageToGrid() {
-    const mediaItem = document.createElement('div');
-    mediaItem.className = 'selected-media-item';
-    mediaItem.dataset.mediaType = 'captured';
-
-    const thumbnail = document.createElement('img');
-    thumbnail.className = 'selected-media-thumbnail';
-    thumbnail.src = this.state.capturedImageData;
-    thumbnail.alt = 'Captured screen';
-
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'selected-media-item-remove';
-    removeBtn.innerHTML = '×';
-    removeBtn.title = 'Remove captured image';
-    removeBtn.onclick = () => this.removeImage();
-
-    mediaItem.appendChild(thumbnail);
-    mediaItem.appendChild(removeBtn);
-
-    if (this.elements.selectedMediaGrid) {
-      this.elements.selectedMediaGrid.appendChild(mediaItem);
-    }
-  }
-
-  /**
-   * Add selected media to grid
-   */
-  addSelectedMediaToGrid() {
-    this.state.selectedMediaArray.forEach((media, index) => {
-      const mediaItem = document.createElement('div');
-      mediaItem.className = 'selected-media-item';
-      mediaItem.dataset.mediaType = 'selected';
-      mediaItem.dataset.mediaIndex = index;
-
-      const thumbnail = document.createElement('img');
-      thumbnail.className = 'selected-media-thumbnail';
-      thumbnail.src = media.src;
-      thumbnail.alt = media.alt;
-
-      const removeBtn = document.createElement('button');
-      removeBtn.className = 'selected-media-item-remove';
-      removeBtn.innerHTML = '×';
-      removeBtn.title = 'Remove this media';
-      removeBtn.onclick = () => this.removeSpecificMedia(index);
-
-      mediaItem.appendChild(thumbnail);
-      mediaItem.appendChild(removeBtn);
-
-      if (this.elements.selectedMediaGrid) {
-        this.elements.selectedMediaGrid.appendChild(mediaItem);
-      }
-    });
-  }
-
-  /**
-   * Remove specific media item
-   */
-  removeSpecificMedia(index) {
-    this.state.selectedMediaArray.splice(index, 1);
-    this.refreshMediaDisplay();
-  }
-
-  /**
-   * Remove captured image
-   */
-  removeImage() {
-    this.state.capturedImageData = null;
-
-    if (!this.state.selectedMediaArray || this.state.selectedMediaArray.length === 0) {
-      if (this.elements.inputText) {
-        this.elements.inputText.placeholder = 'Tell me what to do...';
-      }
-    }
-
-    this.refreshMediaDisplay();
-  }
-
-  /**
-   * Handle screen area selection
-   */
-  async handleScreenAreaSelected(selectionData) {
-    try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      const stream = await this.captureTabStream();
-      const dataURL = await this.processScreenCapture(stream, selectionData);
-
-      this.displayCapturedImage(dataURL);
-    } catch (error) {
-      console.error('Area capture failed:', error);
-      this.showError('Failed to capture selected area. Please try again.');
-    }
-  }
-
-  /**
-   * Capture tab stream
-   */
-  captureTabStream() {
-    return new Promise((resolve, reject) => {
-      chrome.tabCapture.capture(
-        { audio: false, video: true },
-        (stream) => {
-          if (stream) {
-            resolve(stream);
-          } else {
-            reject(new Error('Failed to capture tab'));
-          }
-        }
-      );
-    });
-  }
-
-  /**
-   * Process screen capture
-   */
-  processScreenCapture(stream, selectionData) {
-    return new Promise((resolve) => {
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.play();
-
-      video.addEventListener('loadedmetadata', () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        canvas.width = selectionData.width;
-        canvas.height = selectionData.height;
-
-        const scaleX = video.videoWidth / window.innerWidth;
-        const scaleY = video.videoHeight / window.innerHeight;
-
-        ctx.drawImage(
-          video,
-          selectionData.x * scaleX,
-          selectionData.y * scaleY,
-          selectionData.width * scaleX,
-          selectionData.height * scaleY,
-          0,
-          0,
-          selectionData.width,
-          selectionData.height
-        );
-
-        const dataURL = canvas.toDataURL('image/png');
-        stream.getTracks().forEach(track => track.stop());
-        resolve(dataURL);
-      });
-    });
-  }
-
-  /**
-   * Display captured image
-   */
-  displayCapturedImage(dataURL) {
-    this.state.capturedImageData = dataURL;
-
-    if (this.elements.inputText) {
-      this.elements.inputText.placeholder = 'Describe what you want to know about the image or add additional context...';
-    }
-
-    this.refreshMediaDisplay();
-    this.showError('Screen captured! You can now ask questions about the image.', CONSTANTS.ERROR_TYPES.SUCCESS);
-  }
-
-  /**
-   * Handle screen capture
-   */
-  async handleScreenCapture() {
-    try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-
-      await chrome.tabs.sendMessage(tabs[0].id, {
-        action: 'startScreenAreaSelection'
-      });
-
-      this.pendingCaptureData = null;
-    } catch (error) {
-      console.error('Screen capture failed:', error);
-      this.showError('Failed to start screen capture. Please try again.');
-    }
-  }
-
-  /**
-   * Open settings popup
-   */
-  openSettingsPopup() {
-    if (this.elements.maxCharactersInput) {
-      this.elements.maxCharactersInput.value = this.state.currentMaxCharacters || CONSTANTS.DEFAULTS.MAX_CHARACTERS;
-    }
-
-    if (this.elements.formalityTogglePopup) {
-      this.elements.formalityTogglePopup.checked = this.state.currentFormalityToggle || CONSTANTS.DEFAULTS.FORMALITY_TOGGLE;
-    }
-
-    if (this.elements.settingsPopup) {
-      this.elements.settingsPopup.style.display = 'block';
-    }
-  }
-
-  /**
-   * Close settings popup
-   */
-  closeSettingsPopup() {
-    if (this.elements.settingsPopup) {
-      this.elements.settingsPopup.style.display = 'none';
-    }
-  }
-
-  /**
-   * Save settings
-   */
-  saveSettings() {
-    // Validate and save max characters
-    const maxChars = parseInt(this.elements.maxCharactersInput?.value);
-    if (isNaN(maxChars) || maxChars < CONSTANTS.LIMITS.MIN_CHARACTERS || maxChars > CONSTANTS.LIMITS.MAX_CHARACTERS) {
-      this.showError(`Max characters must be between ${CONSTANTS.LIMITS.MIN_CHARACTERS} and ${CONSTANTS.LIMITS.MAX_CHARACTERS}`, CONSTANTS.ERROR_TYPES.WARNING);
-      if (this.elements.maxCharactersInput) {
-        this.elements.maxCharactersInput.value = CONSTANTS.DEFAULTS.MAX_CHARACTERS;
-      }
-      this.state.currentMaxCharacters = CONSTANTS.DEFAULTS.MAX_CHARACTERS;
-    } else {
-      this.state.currentMaxCharacters = maxChars;
-    }
-
-    // Save formality setting
-    this.state.currentFormalityToggle = this.elements.formalityTogglePopup?.checked || false;
-
-    // Save to storage
-    if (this.storage) {
-      this.storage.saveSetting('lengthPreference', this.state.currentMaxCharacters);
-      this.storage.saveSetting('formalityPreference', this.state.currentFormalityToggle);
-    }
-
-    this.closeSettingsPopup();
-    this.showError('Settings saved successfully!', CONSTANTS.ERROR_TYPES.SUCCESS);
-  }
-
-  /**
-   * Handle crop button click
-   */
-  handleCrop() {
-    this.handleScreenCapture();
-  }
-
-  /**
-   * Handle submit button click - uses semantic routing
-   */
-  async handleSubmit() {
-    const text = this.getInputText();
-
-    if (!text) {
-      this.showError('Please enter text to process.');
-      return;
-    }
-
-    if (text.length > CONSTANTS.LIMITS.MAX_TEXT_LENGTH) {
-      this.showError(`Text is too long. Please keep it under ${CONSTANTS.LIMITS.MAX_TEXT_LENGTH} characters.`);
-      return;
-    }
-
-    try {
-      this.showLoading();
-      this.hideError();
-
-      // Initialize semantic routing components
-      if (!this.taskService) {
-        if (typeof window.PromptService !== 'function') {
-          throw new Error('PromptService not available. Check script loading order.');
-        }
-        this.taskService = new window.PromptService("You are a precise, concise writing assistant.");
-      }
-      if (!this.proofreaderService) {
-        if (typeof window.ProofreaderService !== 'function') {
-          throw new Error('ProofreaderService not available. Check script loading order.');
-        }
-        this.proofreaderService = new window.ProofreaderService();
-      }
-      if (!this.summarizerService) {
-        if (typeof window.SummarizerService !== 'function') {
-          throw new Error('SummarizerService not available. Check script loading order.');
-        }
-        this.summarizerService = new window.SummarizerService();
-      }
-      if (!this.rewriterService) {
-        if (typeof window.RewriterService !== 'function') {
-          throw new Error('RewriterService not available. Check script loading order.');
-        }
-        this.rewriterService = new window.RewriterService();
-      }
-      if (!this.router) {
-        if (typeof window.SemanticRouter !== 'function') {
-          throw new Error('SemanticRouter not available. Check script loading order.');
-        }
-        this.router = new window.SemanticRouter();
-      }
-      const routingResult = await this.router.route(text);
-
-      console.log('🎯 Routing result:', routingResult.intent);
-
-      let result;
-      const selectedText = this.state.currentSelection?.text || '';
-
-      switch (routingResult.intent) {
-        case 'proofread':
-          result = await this.executeProofread(selectedText || text);
-          break;
-        case 'revise':
-          result = await this.executeRevise(text, selectedText);
-          break;
-        case 'draft':
-          result = await this.executeDraft(text, selectedText);
-          break;
-        case 'summarize':
-          result = await this.executeSummarize(selectedText || text);
-          break;
-        default:
-          result = await this.executeRevise(text, selectedText); // Default to revise
-      }
-
-      // Create results object and display
-      const results = {
-        primary: result,
-        alternatives: [
-          `[${routingResult.intent.toUpperCase()}] ${result}`,
-          `[ALT] ${result}`
-        ],
-        metadata: {
-          intent: routingResult.intent,
-          score: routingResult.score,
-          via: routingResult.via,
-          timestamp: new Date().toISOString()
-        }
+  generateAPIStatusSummary(coreAvailable, extensionAvailable, aiAvailable, allAIAvailable) {
+    if (!coreAvailable) {
+      return {
+        level: 'error',
+        message: 'Chrome Extension APIs unavailable',
+        description: 'Extension is not running in Chrome extension context'
       };
-
-      this.state.currentResults = results;
-      this.showResults(results, text);
-
-    } catch (error) {
-      console.error('Semantic routing error:', error);
-      this.showError(`Error processing text: ${error.message}`);
-    } finally {
-      this.hideLoading();
-    }
-  }
-
-  /**
-   * Execute proofreading task using Chrome Proofreader API
-   */
-  async executeProofread(text) {
-    try {
-      // Try Chrome Proofreader API first
-      if (this.proofreaderService) {
-        const result = await this.proofreaderService.proofread(text);
-
-        // If Chrome Proofreader made corrections, return them
-        if (result.hasChanges) {
-          console.log(`✅ Chrome Proofreader made ${result.metadata.correctionCount} corrections`);
-          return result.corrected;
-        }
-
-        // If no corrections needed, return original
-        console.log('✅ Chrome Proofreader: No corrections needed');
-        return result.corrected;
-      }
-    } catch (error) {
-      console.warn('Chrome Proofreader failed, falling back to language model:', error.message);
     }
 
-    // Fallback to language model if Chrome Proofreader unavailable
-    const prompt = `Please proofread and correct any grammar, spelling, or punctuation errors in the following text. Return only the corrected text:\n\n${text}`;
-    return await this.taskService.send(prompt);
-  }
-
-  /**
-   * Execute revision task using Chrome Rewriter API
-   */
-  async executeRevise(text, goal = null) {
-    try {
-      // Try Chrome Rewriter API first
-      if (this.rewriterService) {
-        // Map goals to rewriter configuration
-        const goalToConfig = {
-          'formal': { tone: 'more-formal' },
-          'casual': { tone: 'more-casual' },
-          'concise': { length: 'shorter' },
-          'detailed': { length: 'longer' },
-          'professional': { tone: 'more-formal', format: 'markdown' },
-          'friendly': { tone: 'more-casual' }
-        };
-
-        const config = goalToConfig[goal] || { tone: 'as-is', length: 'as-is' };
-
-        const result = await this.rewriterService.rewrite(text, {
-          ...config,
-          context: goal ? `Revise to be more ${goal}` : 'Improve clarity and readability'
-        });
-
-        if (result.hasChanges) {
-          console.log(`✅ Chrome Rewriter revised text (${result.metadata.lengthChange > 0 ? '+' : ''}${result.metadata.lengthChange} chars)`);
-          return result.rewritten;
-        }
-
-        console.log('✅ Chrome Rewriter: Text already optimal');
-        return result.rewritten;
-      }
-    } catch (error) {
-      console.warn('Chrome Rewriter failed, falling back to language model:', error.message);
+    if (!extensionAvailable) {
+      return {
+        level: 'error',
+        message: 'Extension APIs missing',
+        description: 'Some Chrome extension APIs are not available'
+      };
     }
 
-    // Fallback to language model if Chrome Rewriter unavailable
-    let prompt = `Please revise the following text to improve clarity, conciseness, and readability`;
-    if (goal) {
-      prompt += ` with a focus on making it more ${goal}`;
-    }
-    prompt += `:\n\n${text}`;
-    return await this.taskService.send(prompt);
-  }
-
-  /**
-   * Execute drafting task
-   */
-  async executeDraft(instructions) {
-    const prompt = `Please write content based on these instructions: ${instructions}`;
-    return await this.taskService.send(prompt);
-  }
-
-  /**
-   * Execute summarization task using Chrome Summarizer API
-   */
-  async executeSummarize(text, summaryType = 'key-points', length = 'medium') {
-    try {
-      // Try Chrome Summarizer API first
-      if (this.summarizerService) {
-        const result = await this.summarizerService.summarize(text, {
-          type: summaryType,
-          length: length
-        });
-
-        console.log(`✅ Chrome Summarizer generated ${summaryType} summary (${length} length)`);
-        console.log(`📊 Compression ratio: ${(result.metadata.compressionRatio * 100).toFixed(1)}%`);
-
-        return result.summary;
-      }
-    } catch (error) {
-      console.warn('Chrome Summarizer failed, falling back to language model:', error.message);
+    if (!aiAvailable) {
+      return {
+        level: 'warning',
+        message: 'Chrome AI unavailable',
+        description: 'Chrome Built-in AI is not enabled or supported'
+      };
     }
 
-    // Fallback to language model if Chrome Summarizer unavailable
-    const summaryTypeMap = {
-      'key-points': 'key points in bullet format',
-      'tldr': 'a concise TL;DR summary',
-      'teaser': 'an engaging teaser highlighting the most interesting parts',
-      'headline': 'a single sentence headline summary'
+    if (!allAIAvailable) {
+      return {
+        level: 'warning',
+        message: 'AI partially available',
+        description: 'Some Chrome AI features are not available'
+      };
+    }
+
+    return {
+      level: 'ready',
+      message: 'All APIs ready',
+      description: 'Chrome extension and AI APIs are fully available'
     };
+  }
 
-    const lengthMap = {
-      'short': 'very brief',
-      'medium': 'moderately detailed',
-      'long': 'comprehensive'
+  /**
+   * Update status badge based on API availability
+   */
+  updateStatusForAPIAvailability(apiStatus) {
+    const { summary } = apiStatus;
+
+    // Update status badge
+    this.uiManager.updateStatus(summary.level, summary.message);
+
+    // Log detailed information
+    console.log('🔍 Chrome API Availability Check:');
+    console.log('📋 Summary:', summary);
+    console.log('🔧 APIs:', apiStatus.apis);
+
+    // Show detailed error if needed
+    if (summary.level === 'error') {
+      this.uiManager.showError(summary.description);
+    } else if (summary.level === 'warning' && !apiStatus.aiAvailable) {
+      // Show helpful guidance for AI setup
+      this.showAISetupGuidance(summary.description);
+    }
+
+    // Store API status for later reference
+    this.apiStatus = apiStatus;
+  }
+
+  /**
+   * Show AI setup guidance
+   */
+  showAISetupGuidance(description) {
+    const guidance = `
+${description}
+
+To enable Chrome AI:
+1. Use Chrome Canary/Dev (121+)
+2. Go to chrome://flags/
+3. Enable "Prompt API for Gemini Nano"
+4. Enable "Rewriter API for Gemini Nano"
+5. Restart Chrome and wait for model download
+    `.trim();
+
+    console.warn('⚠️ AI Setup Required:', guidance);
+
+    // Show a user-friendly message in the UI
+    this.uiManager.showError('Chrome AI not available. Check console for setup instructions.');
+  }
+
+  /**
+   * Get panel status for debugging
+   */
+  getStatus() {
+    return {
+      stateManager: Boolean(this.stateManager),
+      uiManager: Boolean(this.uiManager),
+      messageHandler: Boolean(this.messageHandler),
+      settingsManager: Boolean(this.settingsManager),
+      aiServicesManager: Boolean(this.aiServicesManager),
+      storage: Boolean(this.storage),
+      apiStatus: this.apiStatus,
+      managersReady: Boolean(
+        this.stateManager &&
+        this.uiManager &&
+        this.messageHandler &&
+        this.settingsManager &&
+        this.aiServicesManager
+      )
     };
-
-    const prompt = `Please create ${summaryTypeMap[summaryType] || 'a summary'} of the following text. Make it ${lengthMap[length] || 'appropriately sized'}:\n\n${text}`;
-    return await this.taskService.send(prompt);
   }
 }
 
-// Initialize the panel when DOM is loaded
+// Initialize panel when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   try {
-    new TonePilotPanel();
+    // Verify all required modules are available
+    const requiredModules = [
+      'TonePilotStateManager',
+      'TonePilotUIManager',
+      'TonePilotMessageHandler',
+      'TonePilotSettingsManager',
+      'TonePilotAIServicesManager',
+      'TONEPILOT_CONSTANTS'
+    ];
+
+    const missingModules = requiredModules.filter(module => !window[module]);
+
+    if (missingModules.length > 0) {
+      console.error('❌ Missing required modules:', missingModules);
+      throw new Error(`Required modules not loaded: ${missingModules.join(', ')}`);
+    }
+
+    // Initialize panel
+    window.tonePilotPanel = new TonePilotPanel();
+    console.log('✅ TonePilot Panel created successfully');
+
   } catch (error) {
-    console.error('Failed to initialize TonePilot panel:', error);
+    console.error('💥 Panel initialization failed:', error);
+
+    // Show error in DOM if possible
+    const errorElement = document.getElementById('error');
+    if (errorElement) {
+      errorElement.textContent = `Initialization failed: ${error.message}`;
+      errorElement.style.display = 'block';
+    }
   }
 });
+
+// Export for window access
+if (typeof window !== 'undefined') {
+  window.TonePilotPanel = TonePilotPanel;
+}

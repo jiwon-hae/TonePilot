@@ -75,6 +75,23 @@ class SemanticRouter {
       via: 'fallback'
     };
   }
+
+  normalize(input, intent) {
+    const text = (input || "").trim();
+
+    switch (intent) {
+      case "proofread":
+        return { type: "proofread", text };
+      case "revise":
+        return { type: "revise", text, goal: null };
+      case "draft":
+        return { type: "draft", instructions: text };
+      case "summarize":
+        return { type: "summarize", text, summaryType: "key-points", length: "medium" };
+      default:
+        return { type: "other", text };
+    }
+  }
 }
 
 // Export to window globals
