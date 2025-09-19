@@ -1,9 +1,21 @@
-import type { Intent } from "./semanticRouting"; // reuse the Intent type
+// src/services/classifierService.js
+import { PromptService } from "./promptService.js";
+
+/** @typedef {"proofread"|"revise"|"draft"|"other"} Intent */
 
 export class ClassifierService {
-  constructor(private svc: import("./promptService").PromptService) {}
+  /**
+   * @param {PromptService} svc
+   */
+  constructor(svc) {
+    this.svc = svc;
+  }
 
-  async classify(input: string): Promise<{ intent: Intent; confidence: number }> {
+  /**
+   * @param {string} input
+   * @returns {Promise<{ intent: Intent, confidence: number }>}
+   */
+  async classify(input) {
     // Minimal JSON-only classifier prompt
     const prompt = `
 You are an intent classifier. Choose EXACTLY one intent from:
@@ -18,14 +30,16 @@ Definitions:
 
 User: ${input}
 JSON:`;
+
     const raw = await this.svc.send(prompt);
 
     try {
-      const parsed = JSON.parse(raw) as { intent?: Intent; confidence?: number };
-      const intent: Intent = (["proofread", "revise", "draft", "other"] as const).includes(parsed.intent as Intent)
-        ? (parsed.intent as Intent)
-        : "other";
-      const confidence = typeof parsed.confidence === "number" ? parsed.confidence : 0.7;
+      const parsed = JSON.parse(raw);
+      const allowed = ["proofread", "revise", "draft", "other"];
+      /** @type {Intent} */
+      const intent = allowed.includes(parsed.intent) ? parsed.intent : "other";
+      const confidence =
+        typeof parsed.confidence === "number" ? parsed.confidence : 0.7;
       return { intent, confidence };
     } catch {
       // If the model ever returns non-JSON, degrade gracefully

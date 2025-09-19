@@ -4,20 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TonePilot is a Chrome extension that rewrites selected text with different tone presets. The extension is designed to work with Chrome's Built-in AI but can operate in fallback modes. It features semantic intent routing and operates primarily on-device.
+TonePilot is a Chrome extension that rewrites selected text using Chrome's Built-in AI with different tone presets. It operates entirely on-device with no external API calls.
 
 ## Extension Architecture
 
 ### Core Components
 
 - **manifest.json**: Chrome MV3 extension configuration with side panel, content scripts, and AI-related permissions
-- **src/background.js**: Service worker that handles context menus, message routing between content script and panel
-- **src/content.js**: Injected into all pages to detect text selection, handle text replacement, and screen capture functionality
-- **src/panel.js**: Main extension UI controller (TonePilotPanel class) managing the side panel interface
-- **src/panel.html**: Side panel UI with dark theme, tone presets, and controls
-- **src/presets.js**: Tone preset definitions and domain-specific adaptations
-- **src/storage.js**: Local storage management for settings and history
-- **src/semanticRouting.js**: In-browser semantic intent router using TensorFlow.js and Universal Sentence Encoder for classifying user intents (proofread, revise, draft)
+- **background.js**: Service worker that handles context menus, message routing between content script and panel
+- **content.js**: Injected into all pages to detect text selection, handle text replacement, and screen capture functionality
+- **ui/panel.js**: Main extension UI controller (TonePilotPanel class) managing the side panel interface
+- **ui/panel.html**: Side panel UI with dark theme, tone presets, and controls
+- **presets.js**: Tone preset definitions and domain-specific adaptations
+- **services/storageService.js**: Local storage management for settings and history
+- **services/semanticRouting.js**: In-browser semantic intent router using TensorFlow.js
 
 ### Message Flow Architecture
 
@@ -30,13 +30,6 @@ TonePilot is a Chrome extension that rewrites selected text with different tone 
 - **TonePilotPanel**: Main UI controller with methods for rewriting, selection handling, and state management
 - **StorageManager**: Handles extension settings and rewrite history persistence
 
-### Script Loading Dependencies
-
-Scripts must be loaded in this order in panel.html:
-1. `presets.js` - Defines tone presets and exports to window globals
-2. `storage.js` - Provides StorageManager class
-3. `panel.js` - Main application logic
-
 ## Development Commands
 
 ### Testing the Extension
@@ -48,15 +41,16 @@ Scripts must be loaded in this order in panel.html:
 ```
 
 ### Requirements
-- Chrome 121+ for side panel support
-- Modern browser with ES6+ support
+- Chrome 121+ with Built-in AI enabled
+- Chrome's experimental AI features must be activated
 
 ## Technical Constraints
 
-### Browser Compatibility
-- Chrome MV3 extension architecture
-- ES6 modules not used - relies on script tags and window globals
-- All JavaScript files export to `window` object for browser compatibility
+### Chrome Built-in AI Integration
+- Uses `window.ai.languageModel`, `window.ai.rewriter`, `window.ai.writer`, `window.ai.summarizer`
+- All AI processing happens on-device
+- Requires capability checking before use
+- Sessions are managed per rewrite operation
 
 ### Extension Permissions
 - `activeTab`: Access current tab for text selection/replacement
@@ -77,45 +71,54 @@ Scripts must be loaded in this order in panel.html:
 Presets are defined in `presets.js` with:
 - **constraints**: Technical parameters (word limits, formality, structure)
 - **systemPrompt**: AI instruction for the rewrite
-- **domain adaptations**: Context-specific preset recommendations (Gmail→diplomatic, LinkedIn→professional)
 
 Built-in presets: concise, diplomatic, executive, friendly, academic
 
-## Semantic Intent Routing
+## UI Architecture
 
-The extension includes an advanced semantic routing system that classifies user intents:
+### Result Display System
+The extension supports two result display modes:
 
-### Intent Categories
-- **proofread**: Grammar and spelling corrections
-- **revise**: Tone and style improvements
-- **draft**: Creating new content from scratch
-- **other**: Fallback for unclassified intents
+1. **Individual Result Sections** (for textarea input):
+   - Creates separate result containers for each submission
+   - Each container includes: Query display → Tabs → Content → Actions
+   - Multiple submissions stack vertically
+   - Independent tab functionality per section
 
-### Technical Implementation
-- Uses TensorFlow.js with Universal Sentence Encoder for semantic similarity
-- Pre-embeds example prompts for each intent category
-- Includes keyword fallback for low-confidence classifications
-- Configurable similarity threshold (default: 0.65)
+2. **Original Result Section** (for selected text only):
+   - Uses the original `resultSection` in panel.html
+   - Single result display with tabs for alternatives
+   - No query display since no textarea input
 
-### Usage in Code
-```javascript
-await initSemanticRouter();
-const result = await routeIntent("Revise this to be concise");
-// Returns: { intent: "revise", score: 0.79, averages: {...} }
-```
+### Key UI Methods
+- `createNewResultSection()`: Creates individual result containers with query display
+- `updateOriginalResultDisplay()`: Updates the original result section for selected text
+- `switchIndividualResultTab()`: Handles tab switching within individual sections
+
+### Style Guidelines
+- Dark theme with consistent color palette
+- Clean, minimal design without heavy borders
+- Query text: 20px, bold styling
+- Result tabs: Subtle styling without borders
+- Individual result sections separated by bottom borders
 
 ## Development Notes
 
-### Current State (Hybrid Implementation)
-- Extension is designed for Chrome Built-in AI but `aiClient.js` file is missing
-- `panel.js` references AIClient but should handle graceful degradation
-- Semantic routing provides intent classification independent of AI backend
-- UI supports preset selection and mock rewriting for testing
+### Script Loading Dependencies
+Scripts in panel.html must load in order:
+1. `storage.js` - Storage utilities
+2. `semanticRouting.js` - Intent classification
+3. `panel.js` - Main application logic
+
+### Browser Compatibility
+- Chrome MV3 extension architecture
+- ES6 modules not used - relies on script tags and window globals
+- All JavaScript files export to `window` object for browser compatibility
 
 ### Common Development Tasks
 
 #### Adding New Tone Presets
-Edit `src/presets.js` and add to `TONE_PRESETS` object with:
+Edit `presets.js` and add to `TONE_PRESETS` object with:
 - `name`, `description`, `icon`
 - `constraints` object (formality, word limits, etc.)
 - `systemPrompt` for AI instruction
@@ -125,12 +128,3 @@ Edit `src/presets.js` and add to `TONE_PRESETS` object with:
 2. Check console for initialization errors
 3. Verify script loading order in panel.html
 4. Ensure all dependencies export to window globals
-
-#### Script Dependencies
-All JavaScript files use this pattern for browser compatibility:
-```javascript
-// Browser global export
-if (typeof window !== 'undefined') {
-  window.ClassName = ClassName;
-}
-```
