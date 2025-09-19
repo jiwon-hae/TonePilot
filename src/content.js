@@ -1,61 +1,183 @@
-let lastSelection = null;
-let lastRange = null;
+/**
+ * TonePilot Content Script
+ * Handles text selection, replacement, and screen capture functionality
+ *
+ * @fileoverview Content script for TonePilot Chrome extension
+ */
 
-// Screen capture selection variables
-let isSelectingArea = false;
-let selectionOverlay = null;
-let selectionBox = null;
-let startX = 0;
-let startY = 0;
+/**
+ * Content script constants
+ * @const {Object}
+ */
+const CONTENT_CONSTANTS = {
+  // Selection types
+  SOURCE_TYPES: {
+    SELECTION: 'selection',
+    INPUT: 'input',
+    CONTENT_EDITABLE: 'contentEditable'
+  },
 
+  // Domain contexts
+  DOMAIN_CONTEXTS: {
+    EMAIL: 'email',
+    PROFESSIONAL: 'professional',
+    TECHNICAL: 'technical',
+    DOCUMENTATION: 'documentation',
+    GENERAL: 'general'
+  },
+
+  // Domain mappings
+  DOMAIN_MAPPINGS: {
+    'gmail.com': 'email',
+    'linkedin.com': 'professional',
+    'github.com': 'technical',
+    'notion.so': 'documentation'
+  },
+
+  // Screen capture settings
+  SCREEN_CAPTURE: {
+    OVERLAY_Z_INDEX: 999999,
+    SELECTION_BOX_COLOR: 'rgba(0, 123, 255, 0.3)',
+    SELECTION_BORDER: '2px solid #007bff',
+    MIN_SELECTION_SIZE: 10
+  },
+
+  // Message actions
+  MESSAGE_ACTIONS: {
+    GET_SELECTION: 'getSelection',
+    SELECTION_DATA: 'selectionData',
+    REPLACE_TEXT: 'replaceText',
+    START_SCREEN_CAPTURE: 'startScreenCapture',
+    SCREEN_AREA_SELECTED: 'screenAreaSelected'
+  },
+
+  // CSS classes
+  CSS_CLASSES: {
+    SELECTION_OVERLAY: 'tonepilot-selection-overlay',
+    SELECTION_BOX: 'tonepilot-selection-box'
+  }
+};
+
+/**
+ * Content script state management
+ * @private
+ */
+let _contentState = {
+  lastSelection: null,
+  lastRange: null,
+  isSelectingArea: false,
+  selectionOverlay: null,
+  selectionBox: null,
+  startCoords: { x: 0, y: 0 }
+};
+
+/**
+ * Extract selection data from the current page
+ * @returns {Object|null} Selection data object or null if no selection
+ */
 function getSelectionData() {
-  const selection = window.getSelection();
-  const selectedText = selection.toString().trim();
-  
-  if (!selectedText) {
+  try {
+    const selection = window.getSelection();
+    const selectedText = selection.toString().trim();
+
+    if (!selectedText || selectedText.length === 0) {
+      return null;
+    }
+
+    if (selection.rangeCount === 0) {
+      return null;
+    }
+
+    const range = selection.getRangeAt(0);
+    _contentState.lastRange = range.cloneRange();
+
+    const selectionInfo = _analyzeSelection(selection, selectedText);
+    const contextInfo = _getPageContext();
+
+    return {
+      text: selectedText,
+      sourceType: selectionInfo.sourceType,
+      domain: window.location.hostname,
+      domainContext: contextInfo.domainContext,
+      url: window.location.href,
+      context: {
+        ...selectionInfo.context,
+        pageTitle: document.title,
+        timestamp: Date.now()
+      }
+    };
+  } catch (error) {
+    console.error('Failed to get selection data:', error);
     return null;
   }
-  
-  const range = selection.getRangeAt(0);
-  lastRange = range.cloneRange();
-  
+}
+
+/**
+ * Analyze the current selection and determine its type
+ * @private
+ * @param {Selection} selection - Browser selection object
+ * @param {string} selectedText - Selected text content
+ * @returns {Object} Analysis result
+ */
+function _analyzeSelection(selection, selectedText) {
   const activeElement = document.activeElement;
-  let sourceType = 'selection';
-  let context = {};
-  
+  const { SOURCE_TYPES } = CONTENT_CONSTANTS;
+  let sourceType = SOURCE_TYPES.SELECTION;
+  let context = {
+    wordCount: selectedText.split(/\s+/).length,
+    characterCount: selectedText.length
+  };
+
+  // Check for input fields
   if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-    sourceType = 'input';
-    context.inputType = activeElement.type;
-    context.placeholder = activeElement.placeholder;
-  } else if (activeElement && activeElement.contentEditable === 'true') {
-    sourceType = 'contentEditable';
+    sourceType = SOURCE_TYPES.INPUT;
+    context = {
+      ...context,
+      inputType: activeElement.type || 'text',
+      placeholder: activeElement.placeholder || '',
+      maxLength: activeElement.maxLength || null
+    };
   }
-  
+  // Check for contentEditable elements
+  else if (activeElement && activeElement.contentEditable === 'true') {
+    sourceType = SOURCE_TYPES.CONTENT_EDITABLE;
+    context = {
+      ...context,
+      elementTag: activeElement.tagName.toLowerCase(),
+      className: activeElement.className
+    };
+  }
+
+  return { sourceType, context };
+}
+
+/**
+ * Get page context information
+ * @private
+ * @returns {Object} Page context
+ */
+function _getPageContext() {
   const domain = window.location.hostname;
-  let domainContext = 'general';
-  
-  if (domain.includes('gmail.com')) {
-    domainContext = 'email';
-  } else if (domain.includes('linkedin.com')) {
-    domainContext = 'professional';
-  } else if (domain.includes('github.com')) {
-    domainContext = 'technical';
-  } else if (domain.includes('notion.so')) {
-    domainContext = 'documentation';
+  const { DOMAIN_MAPPINGS, DOMAIN_CONTEXTS } = CONTENT_CONSTANTS;
+
+  // Find domain context
+  let domainContext = DOMAIN_CONTEXTS.GENERAL;
+  for (const [domainKey, context] of Object.entries(DOMAIN_MAPPINGS)) {
+    if (domain.includes(domainKey)) {
+      domainContext = context;
+      break;
+    }
   }
   
   return {
-    text: selectedText,
-    sourceType,
-    domain: domain,
     domainContext,
-    context,
-    url: window.location.href
+    pageUrl: window.location.href,
+    pageTitle: document.title
   };
 }
 
 function replaceSelection(newText) {
-  if (!lastRange) {
+  if (!_contentState.lastRange) {
     console.error('No stored range for replacement');
     return false;
   }
@@ -63,7 +185,7 @@ function replaceSelection(newText) {
   try {
     const selection = window.getSelection();
     selection.removeAllRanges();
-    selection.addRange(lastRange);
+    selection.addRange(_contentState.lastRange);
     
     const activeElement = document.activeElement;
     
@@ -261,7 +383,7 @@ document.addEventListener('mouseup', () => {
   if (selection.toString().trim()) {
     console.log('Content script detected text selection:', selection.toString());
     const selectionData = getSelectionData();
-    lastSelection = selectionData;
+    _contentState.lastSelection = selectionData;
 
     // Automatically send selection to panel
     if (selectionData) {
@@ -279,7 +401,7 @@ document.addEventListener('selectionchange', () => {
   if (selection.toString().trim()) {
     console.log('Content script detected selection change:', selection.toString());
     const selectionData = getSelectionData();
-    lastSelection = selectionData;
+    _contentState.lastSelection = selectionData;
 
     // Automatically send selection to panel
     if (selectionData) {
@@ -291,8 +413,8 @@ document.addEventListener('selectionchange', () => {
   } else {
     // Text was deselected - clear the selection
     console.log('Content script detected text deselection');
-    lastSelection = null;
-    lastRange = null;
+    _contentState.lastSelection = null;
+    _contentState.lastRange = null;
 
     // Send clear message to panel
     chrome.runtime.sendMessage({

@@ -265,7 +265,7 @@
 
     .website-info {
       display: flex; align-items: center; gap: 8px; padding: 6px 12px;
-      background: #262626; border: 1px solid #404040; border-radius: 6px;
+      background: none;
     }
     .website-icon { font-size: 14px; }
     .website-details { display: flex; flex-direction: column; gap: 1px; }
@@ -285,7 +285,7 @@
       margin-top: auto;          /* pushes it to the bottom of .input-section */
       position: sticky;          /* pins to bottom when scrolled */
       bottom: 0;
-      background: #1a1a1a;       /* solid base to cover content beneath */
+      /* background: #1a1a1a;       solid base to cover content beneath */
       padding-top: 8px;          /* slight spacing from content above */
       border-top: 1px solid #333;
       z-index: 1;
@@ -443,14 +443,9 @@
   <div class="container">
     <div class="header">
       <div class="header-left">
-        <div id="websiteInfo" class="website-info" style="display: none;">
-          <div class="website-icon">🌐</div>
-          <div class="website-details">
-            <div class="website-name" id="websiteName">Loading...</div>
-            <div class="website-url" id="websiteUrl">Loading...</div>
-          </div>
-        </div>
+        <div class="status-badge" id="status">Initializing...</div>
       </div>
+      
       <div class="header-actions">
         <button id="uploadBtn" class="header-btn" title="Upload">
           <img src="../icons/upload.png" alt="Upload" style="width:16px; height:16px;" />
@@ -460,6 +455,7 @@
         </button>
         <button class="header-btn" title="Help">?</button>
       </div>
+  
     </div>
 
     <div class="main-content">
@@ -478,12 +474,14 @@
 
         <!-- ★ textInputWrapper now sticks to the bottom of the scrolling panel -->
         <div id="textInputWrapper" class="text-input-wrapper">
-          <div id="selectedTextDisplay" class="selected-text-display" style="display: none;">
-            <div class="selected-text-header">
-              <button id="clearSelectedBtn" class="selected-text-clear" title="Clear selection">
-                <img src="../icons/axe.png" alt="Clear" style="width:10px; height:10px;" />
-              </button>
+          <div id="websiteInfo" class="website-info" style="display: none;">
+            <div class="website-icon">🌐</div>
+            <div class="website-details">
+              <div class="website-name" id="websiteName">Loading...</div>
+              <div class="website-url" id="websiteUrl">Loading...</div>
             </div>
+          </div>
+          <div id="selectedTextDisplay" class="selected-text-display" style="display: none;">
             <div id="selectedTextContent" class="selected-text-content"></div>
           </div>
           <div class="input-container">
@@ -516,8 +514,17 @@
       <div class="tone-presets" id="presets"></div>
 
       <div id="error" class="error" style="display: none;"></div>
+      <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+        <span>Processing...</span>
+      </div>
 
       <div id="resultSection" class="result-section">
+        <div class="result-tabs">
+          <button class="result-tab active" data-tab="primary">Primary</button>
+          <button class="result-tab" data-tab="alt1">Alternative 1</button>
+          <button class="result-tab" data-tab="alt2">Alternative 2</button>
+        </div>
         <div id="resultContent" class="result-content"></div>
 
         <div class="result-actions">
@@ -597,8 +604,8 @@
   </div>
 
   <script src="presets.js"></script>
-  <script src="aiClient.js"></script>
   <script src="storage.js"></script>
+  <script src="semanticRouting.js"></script>
   <script src="panel.js"></script>
 
   <!-- Optional: ensure the sticky input is visible on focus in small viewports -->
