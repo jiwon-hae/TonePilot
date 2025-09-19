@@ -72,7 +72,7 @@ class TonePilotPanel {
   initializeElements() {
     const elementIds = [
       'status', 'inputText', 'loading', 'error',
-      'resultSection', 'resultContent', 'replaceBtn', 'copyBtn', 'websiteInfo',
+      'resultSection', 'resultContent', 'queryDisplay', 'replaceBtn', 'copyBtn', 'websiteInfo',
       'websiteName', 'websiteUrl', 'selectedTextDisplay', 'selectedTextContent',
       'textInputWrapper', 'sourcesPanel', 'mediaGrid',
       'mediaCount', 'selectMediaBtn', 'selectedMediaDisplay', 'selectedMediaGrid',
@@ -342,7 +342,7 @@ class TonePilotPanel {
   handleDocumentClick(e) {
     try {
       if (e.target.classList.contains('result-tab')) {
-        this.switchResultTab(e.target.dataset.tab);
+        this.switchIndividualResultTab(e.target);
       }
       if (e.target.classList.contains('tab-btn')) {
         this.handleTabSwitch(e.target);
@@ -459,7 +459,7 @@ class TonePilotPanel {
       const routeQuery = inputText || 'revise this text';
       const result = await this.performSemanticRouting(routeQuery);
 
-      this.displayRoutingResult(result, hasSelection ? selectedText : inputText);
+      this.displayRoutingResult(result, hasSelection ? selectedText : inputText, inputText);
       this.executeRoutingResult(result, hasSelection, selectedText, inputText);
 
     } catch (error) {
@@ -504,7 +504,7 @@ class TonePilotPanel {
   /**
    * Display routing result in UI
    */
-  displayRoutingResult(result, text) {
+  displayRoutingResult(result, text, inputTextForDisplay = '') {
     const routingInfo = this.formatRoutingInfo(result, text);
 
     if (this.elements.resultContent) {
@@ -515,7 +515,7 @@ class TonePilotPanel {
       `;
     }
 
-    this.showResults({ primary: routingInfo, alternatives: [] });
+    this.showResults({ primary: routingInfo, alternatives: [] }, inputTextForDisplay);
   }
 
   /**
@@ -594,6 +594,7 @@ class TonePilotPanel {
    */
   async handleRewrite() {
     const text = this.state.currentSelection?.text || this.getInputText();
+    const inputText = this.getInputText(); // Only get textarea input for display
 
     if (!text) {
       this.showError('Please select text on the page or enter text to rewrite.');
@@ -615,7 +616,7 @@ class TonePilotPanel {
       const results = this.createMockResults(text);
 
       this.state.currentResults = results;
-      this.showResults(results);
+      this.showResults(results, inputText); // Pass only textarea input for display
 
       await this.saveRewriteToHistory(text, results, context);
 
@@ -647,8 +648,8 @@ class TonePilotPanel {
     return {
       primary: `${text}`,
       alternatives: [
-        `[Alternative 1] ${text}`,
-        `[Alternative 2] ${text}`
+        `${text}`,
+        `${text}`
       ],
       metadata: {
         timestamp: new Date().toISOString()
@@ -715,7 +716,9 @@ class TonePilotPanel {
     }
     if (this.elements.submitBtn) {
       this.elements.submitBtn.disabled = true;
-      this.elements.submitBtn.textContent = 'Processing...';
+      this.elements.submitBtn.innerHTML = `
+        <img src="../icons/loading.gif" alt="Loading..." style="width:16px; height:16px;" />
+      `;
     }
   }
 
@@ -728,7 +731,9 @@ class TonePilotPanel {
     }
     if (this.elements.submitBtn) {
       this.elements.submitBtn.disabled = false;
-      this.elements.submitBtn.textContent = '→';
+      this.elements.submitBtn.innerHTML = `
+        <img src="../icons/submit.png" alt="Submit" style="width:16px; height:16px;" />
+      `;
     }
   }
 
@@ -759,44 +764,191 @@ class TonePilotPanel {
   /**
    * Show results
    */
-  showResults(results) {
-    if (this.elements.resultSection) {
-      this.elements.resultSection.classList.add('visible');
+  showResults(results, inputText = '') {
+    // Always hide the original result section when we have textarea input
+    if (inputText && inputText.trim() !== '') {
+      if (this.elements.resultSection) {
+        this.elements.resultSection.classList.remove('visible');
+      }
+    } else {
+      if (this.elements.resultSection) {
+        this.elements.resultSection.classList.add('visible');
+      }
     }
 
-    this.appendNewResult(results);
+    this.createNewResultSection(results, inputText);
   }
 
   /**
-   * Append new result to the content area
+   * Create a new complete result section for each submission
    */
-  appendNewResult(results) {
-    if (!this.elements.resultContent) return;
+  createNewResultSection(results, inputText) {
+    // Only create result containers when there's actual textarea input
+    if (!inputText || inputText.trim() === '') {
+      // For selected text without textarea input, use the original result display
+      if (this.elements.resultSection) {
+        this.elements.resultSection.classList.add('visible');
+      }
+      this.updateOriginalResultDisplay(results);
+      return;
+    }
 
-    const timestamp = new Date().toLocaleTimeString();
-    const resultBlock = document.createElement('div');
-    resultBlock.className = 'result-block';
-    resultBlock.style.cssText = `
-      margin-bottom: 20px;
-      padding: 16px;
-      border: 1px solid #404040;
-      border-radius: 8px;
-      background: #1a1a1a;
+    // Create a container for all individual result sections if it doesn't exist
+    let resultsContainer = document.getElementById('allResultsContainer');
+    if (!resultsContainer) {
+      resultsContainer = document.createElement('div');
+      resultsContainer.id = 'allResultsContainer';
+      resultsContainer.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      `;
+
+      // Insert after the main-content, before footer
+      const mainContent = document.querySelector('.main-content');
+      if (mainContent) {
+        mainContent.appendChild(resultsContainer);
+      }
+    }
+
+    const sectionId = `result-section-${Date.now()}`;
+
+    const resultSection = document.createElement('div');
+    resultSection.className = 'individual-result-section';
+    resultSection.style.cssText = `
+      margin-bottom: 24px;
+      overflow: hidden;
     `;
 
-    resultBlock.innerHTML = `
-      <div style="font-size: 12px; color: #71717a; margin-bottom: 8px;">
-        Generated at ${timestamp}
+
+    resultSection.innerHTML = `
+      ${inputText ? `
+        <div class="query-display" style="
+          padding: 0px 10px;
+          border:none;
+        ">
+          <div class="query-text" style="
+            font-size: 20px;
+            font-weight:bold;
+            line-height: 1.5;
+            color: #e4e4e7;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+          ">${inputText}</div>
+        </div>
+      ` : ''}
+
+      <div class="result-tabs" style="
+        display: flex;
+        border-bottom: none;
+      ">
+        <button class="result-tab active" data-section="${sectionId}" data-tab="primary" style="
+          padding: 0px 12px;
+          border: none;
+          background: none;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+          color:#B3B3B3 ;
+        ">Primary</button>
+        <button class="result-tab" data-section="${sectionId}" data-tab="alt1" style="
+          padding: 0px 12px;
+          border: none;
+          background: none;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+          color: #6b7280;
+        ">Alternative 1</button>
+        <button class="result-tab" data-section="${sectionId}" data-tab="alt2" style="
+          padding: 0px 12px;
+          border: none;
+          background: none;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+          color: #6b7280;
+        ">Alternative 2</button>
       </div>
-      <div style="white-space: pre-wrap; line-height: 1.6; color: #e4e4e7;">
-        ${results.primary || ''}
+
+      <div class="result-content" style="
+        padding: 20px;
+        white-space: pre-wrap;
+        line-height: 1.6;
+        color: #e4e4e7;
+        font-size: 15px;
+      ">${results.primary || ''}</div>
+      
+      <div class="result-actions" style="border-bottom: 0.05px solid rgb(109, 109, 109); padding-bottom: 20px;">
+          <button id="copyBtn" class="btn btn-secondary" style ="background:none">
+            <img src="../icons/copy.png" alt="Copy" style="width:10px; height:10px;" />
+          </button>
       </div>
     `;
 
-    this.elements.resultContent.appendChild(resultBlock);
+    // Store results data on the section for tab switching
+    resultSection.resultData = results;
+
+    resultsContainer.appendChild(resultSection);
 
     // Scroll to the new result
-    resultBlock.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /**
+   * Update original result display for cases without textarea input
+   */
+  updateOriginalResultDisplay(results) {
+    // Hide the query display since there's no textarea input
+    if (this.elements.queryDisplay) {
+      this.elements.queryDisplay.style.display = 'none';
+    }
+
+    // Update the original result content
+    if (this.elements.resultContent) {
+      this.elements.resultContent.textContent = results.primary || '';
+    }
+
+    // Update tabs to show alternatives if available
+    this.updateResultTabs(results);
+  }
+
+  /**
+   * Switch tabs within individual result sections
+   */
+  switchIndividualResultTab(tabElement) {
+    const sectionId = tabElement.dataset.section;
+    const tabName = tabElement.dataset.tab;
+
+    // Find the parent section
+    const section = tabElement.closest('.individual-result-section');
+    if (!section || !section.resultData) return;
+
+    // Update tab styles within this section only
+    const sectionTabs = section.querySelectorAll('.result-tab');
+    sectionTabs.forEach(tab => {
+      if (tab.dataset.tab === tabName) {
+        tab.style.color = '#3b82f6';
+        tab.style.borderBottomColor = '#3b82f6';
+      } else {
+        tab.style.color = '#6b7280';
+        tab.style.borderBottomColor = 'transparent';
+      }
+    });
+
+    // Update content within this section only
+    const contentElement = section.querySelector('.result-content');
+    if (contentElement) {
+      let content = '';
+      if (tabName === 'primary') {
+        content = section.resultData.primary || '';
+      } else if (tabName === 'alt1') {
+        content = section.resultData.alternatives?.[0] || '';
+      } else if (tabName === 'alt2') {
+        content = section.resultData.alternatives?.[1] || '';
+      }
+      contentElement.textContent = content;
+    }
   }
 
   /**
@@ -1540,6 +1692,7 @@ class TonePilotPanel {
    * Handle submit button click
    */
   handleSubmit() {
+    this.elements.inputText.text = '';
     this.handleRouting();
   }
 }
