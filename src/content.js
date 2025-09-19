@@ -17,22 +17,6 @@ const CONTENT_CONSTANTS = {
     CONTENT_EDITABLE: 'contentEditable'
   },
 
-  // Domain contexts
-  DOMAIN_CONTEXTS: {
-    EMAIL: 'email',
-    PROFESSIONAL: 'professional',
-    TECHNICAL: 'technical',
-    DOCUMENTATION: 'documentation',
-    GENERAL: 'general'
-  },
-
-  // Domain mappings
-  DOMAIN_MAPPINGS: {
-    'gmail.com': 'email',
-    'linkedin.com': 'professional',
-    'github.com': 'technical',
-    'notion.so': 'documentation'
-  },
 
   // Screen capture settings
   SCREEN_CAPTURE: {
@@ -98,7 +82,6 @@ function getSelectionData() {
       text: selectedText,
       sourceType: selectionInfo.sourceType,
       domain: window.location.hostname,
-      domainContext: contextInfo.domainContext,
       url: window.location.href,
       context: {
         ...selectionInfo.context,
@@ -157,20 +140,7 @@ function _analyzeSelection(selection, selectedText) {
  * @returns {Object} Page context
  */
 function _getPageContext() {
-  const domain = window.location.hostname;
-  const { DOMAIN_MAPPINGS, DOMAIN_CONTEXTS } = CONTENT_CONSTANTS;
-
-  // Find domain context
-  let domainContext = DOMAIN_CONTEXTS.GENERAL;
-  for (const [domainKey, context] of Object.entries(DOMAIN_MAPPINGS)) {
-    if (domain.includes(domainKey)) {
-      domainContext = context;
-      break;
-    }
-  }
-  
   return {
-    domainContext,
     pageUrl: window.location.href,
     pageTitle: document.title
   };

@@ -6,7 +6,6 @@
 // Constants
 const CONSTANTS = {
   DEFAULTS: {
-    PRESET: 'diplomatic',
     MAX_CHARACTERS: 300,
     FORMALITY_TOGGLE: false,
     ROUTER_TIMEOUT: 3000,
@@ -53,7 +52,6 @@ class TonePilotPanel {
     this.state = {
       currentSelection: null,
       currentResults: null,
-      selectedPreset: CONSTANTS.DEFAULTS.PRESET,
       routerReady: false,
       capturedImageData: null,
       selectedMediaIds: new Set(),
@@ -73,10 +71,10 @@ class TonePilotPanel {
    */
   initializeElements() {
     const elementIds = [
-      'status', 'inputText', 'contextInfo', 'presets', 'loading', 'error',
+      'status', 'inputText', 'loading', 'error',
       'resultSection', 'resultContent', 'replaceBtn', 'copyBtn', 'websiteInfo',
       'websiteName', 'websiteUrl', 'selectedTextDisplay', 'selectedTextContent',
-      'clearSelectedBtn', 'textInputWrapper', 'sourcesPanel', 'mediaGrid',
+      'textInputWrapper', 'sourcesPanel', 'mediaGrid',
       'mediaCount', 'selectMediaBtn', 'selectedMediaDisplay', 'selectedMediaGrid',
       'settingsBtn', 'settingsPopup', 'closeSettingsBtn', 'saveSettingsBtn',
       'maxCharactersInput', 'formalityTogglePopup', 'cropBtn', 'submitBtn'
@@ -144,7 +142,6 @@ class TonePilotPanel {
    */
   async initializeUIComponents() {
     try {
-      this.renderPresets();
       await this.loadSettings();
       this.updateWebsiteInfo();
       this.checkForCurrentSelection();
@@ -238,7 +235,6 @@ class TonePilotPanel {
     const buttonEvents = [
       { element: 'replaceBtn', handler: () => this.handleReplace() },
       { element: 'copyBtn', handler: () => this.handleCopy() },
-      { element: 'clearSelectedBtn', handler: () => this.clearSelectedText() },
       { element: 'selectMediaBtn', handler: () => this.handleSelectMedia() },
       { element: 'cropBtn', handler: () => this.handleCrop() },
       { element: 'submitBtn', handler: () => this.handleSubmit() }
@@ -382,90 +378,10 @@ class TonePilotPanel {
     // Add any cleanup logic here
   }
 
-  /**
-   * Render tone presets in the UI
-   */
-  renderPresets() {
-    if (!this.elements.presets) {
-      console.warn('Presets element not found');
-      return;
-    }
 
-    try {
-      const presets = this.getAvailablePresets();
-      this.elements.presets.innerHTML = '';
 
-      presets.forEach(preset => {
-        const button = this.createPresetButton(preset);
-        this.elements.presets.appendChild(button);
-      });
-    } catch (error) {
-      console.error('Error rendering presets:', error);
-      this.showError('Failed to load tone presets');
-    }
-  }
 
-  /**
-   * Get available presets with error handling
-   */
-  getAvailablePresets() {
-    if (typeof getAllPresets === 'function') {
-      return getAllPresets();
-    }
 
-    console.warn('getAllPresets function not available, using fallback');
-    return this.getFallbackPresets();
-  }
-
-  /**
-   * Fallback presets if main function is unavailable
-   */
-  getFallbackPresets() {
-    return [
-      { key: 'diplomatic', name: 'Diplomatic', description: 'Polite and considerate', icon: '🤝' },
-      { key: 'concise', name: 'Concise', description: 'Clear and direct', icon: '⚡' },
-      { key: 'friendly', name: 'Friendly', description: 'Warm and approachable', icon: '😊' }
-    ];
-  }
-
-  /**
-   * Create a preset button element
-   */
-  createPresetButton(preset) {
-    const button = document.createElement('button');
-    button.className = `preset-btn ${preset.key === this.state.selectedPreset ? 'active' : ''}`;
-    button.dataset.preset = preset.key;
-
-    button.innerHTML = `
-      <span class="preset-icon">${preset.icon}</span>
-      <span class="preset-name">${preset.name}</span>
-      <div class="preset-desc">${preset.description}</div>
-    `;
-
-    button.addEventListener('click', () => this.selectPreset(preset.key));
-    return button;
-  }
-
-  /**
-   * Select a tone preset
-   */
-  selectPreset(presetKey) {
-    try {
-      this.state.selectedPreset = presetKey;
-
-      // Update UI to reflect selection
-      document.querySelectorAll('.preset-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.preset === presetKey);
-      });
-
-      // Save to storage
-      if (this.storage) {
-        this.storage.saveSetting('defaultPreset', presetKey);
-      }
-    } catch (error) {
-      console.error('Error selecting preset:', error);
-    }
-  }
 
   /**
    * Load settings from storage
@@ -474,11 +390,8 @@ class TonePilotPanel {
     try {
       if (!this.storage) return;
 
-      const defaultPreset = await this.storage.getSetting('defaultPreset', CONSTANTS.DEFAULTS.PRESET);
       const formalityPreference = await this.storage.getSetting('formalityPreference', CONSTANTS.DEFAULTS.FORMALITY_TOGGLE);
       const lengthPreference = await this.storage.getSetting('lengthPreference', CONSTANTS.DEFAULTS.MAX_CHARACTERS);
-
-      this.selectPreset(defaultPreset);
       this.state.currentFormalityToggle = formalityPreference;
       this.state.currentMaxCharacters = lengthPreference;
     } catch (error) {
@@ -497,8 +410,6 @@ class TonePilotPanel {
 
       // Update UI
       this.updateSelectionDisplay(selectionData);
-      this.updateContextInfo(selectionData);
-      this.adaptPresetForDomain(selectionData.domain);
 
       this.hideError();
       this.hideResults();
@@ -524,31 +435,7 @@ class TonePilotPanel {
     }
   }
 
-  /**
-   * Update context information display
-   */
-  updateContextInfo(selectionData) {
-    if (this.elements.contextInfo) {
-      this.elements.contextInfo.style.display = 'block';
-      this.elements.contextInfo.textContent = `From ${selectionData.domain} • ${selectionData.domainContext} context`;
-    }
-  }
 
-  /**
-   * Adapt preset based on domain
-   */
-  adaptPresetForDomain(domain) {
-    if (typeof getDomainAdaptation === 'function') {
-      try {
-        const domainAdaptation = getDomainAdaptation(domain);
-        if (domainAdaptation?.defaultPreset) {
-          this.selectPreset(domainAdaptation.defaultPreset);
-        }
-      } catch (error) {
-        console.warn('Error adapting preset for domain:', error);
-      }
-    }
-  }
 
   /**
    * Handle semantic routing
@@ -721,11 +608,8 @@ class TonePilotPanel {
     try {
       this.showLoading();
       this.hideError();
-      this.hideResults();
 
-      const preset = this.getCurrentPreset();
       const context = this.buildContext();
-      const adjustedPreset = this.adjustPresetForControls(preset);
 
       // Create mock results for demonstration
       const results = this.createMockResults(text);
@@ -742,26 +626,12 @@ class TonePilotPanel {
     }
   }
 
-  /**
-   * Get current preset with fallback
-   */
-  getCurrentPreset() {
-    if (typeof getPresetByName === 'function') {
-      return getPresetByName(this.state.selectedPreset);
-    }
-
-    return {
-      name: this.state.selectedPreset,
-      constraints: {},
-      systemPrompt: `Apply ${this.state.selectedPreset} tone`
-    };
-  }
 
   /**
    * Build context for rewriting
    */
   buildContext() {
-    const context = this.state.currentSelection || { domainContext: 'general' };
+    const context = this.state.currentSelection || {};
 
     if (this.state.capturedImageData) {
       context.image = this.state.capturedImageData;
@@ -775,13 +645,12 @@ class TonePilotPanel {
    */
   createMockResults(text) {
     return {
-      primary: `[${this.state.selectedPreset.toUpperCase()}] ${text}`,
+      primary: `${text}`,
       alternatives: [
         `[Alternative 1] ${text}`,
         `[Alternative 2] ${text}`
       ],
       metadata: {
-        preset: this.state.selectedPreset,
         timestamp: new Date().toISOString()
       }
     };
@@ -796,8 +665,7 @@ class TonePilotPanel {
         await this.storage.saveRewrite({
           originalText,
           rewrittenText: results.primary,
-          preset: this.state.selectedPreset,
-          domain: context.domain || 'unknown',
+            domain: context.domain || 'unknown',
           metadata: results.metadata
         });
       }
@@ -827,23 +695,6 @@ class TonePilotPanel {
     this.showError(errorMessages[errorType], messageType);
   }
 
-  /**
-   * Adjust preset based on user controls
-   */
-  adjustPresetForControls(preset) {
-    const adjusted = JSON.parse(JSON.stringify(preset));
-
-    adjusted.constraints = adjusted.constraints || {};
-    adjusted.constraints.characterLimit = this.state.currentMaxCharacters;
-
-    // Remove conflicting limits
-    delete adjusted.constraints.wordLimit;
-    delete adjusted.constraints.sentenceMax;
-
-    adjusted.constraints.formality = this.state.currentFormalityToggle ? 'formal' : 'casual';
-
-    return adjusted;
-  }
 
   /**
    * Update status display
@@ -913,7 +764,39 @@ class TonePilotPanel {
       this.elements.resultSection.classList.add('visible');
     }
 
-    this.updateResultTabs(results);
+    this.appendNewResult(results);
+  }
+
+  /**
+   * Append new result to the content area
+   */
+  appendNewResult(results) {
+    if (!this.elements.resultContent) return;
+
+    const timestamp = new Date().toLocaleTimeString();
+    const resultBlock = document.createElement('div');
+    resultBlock.className = 'result-block';
+    resultBlock.style.cssText = `
+      margin-bottom: 20px;
+      padding: 16px;
+      border: 1px solid #404040;
+      border-radius: 8px;
+      background: #1a1a1a;
+    `;
+
+    resultBlock.innerHTML = `
+      <div style="font-size: 12px; color: #71717a; margin-bottom: 8px;">
+        Generated at ${timestamp}
+      </div>
+      <div style="white-space: pre-wrap; line-height: 1.6; color: #e4e4e7;">
+        ${results.primary || ''}
+      </div>
+    `;
+
+    this.elements.resultContent.appendChild(resultBlock);
+
+    // Scroll to the new result
+    resultBlock.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   /**
@@ -1043,9 +926,6 @@ class TonePilotPanel {
       this.elements.inputContainer.classList.remove('has-selected-text');
     }
 
-    if (this.elements.contextInfo) {
-      this.elements.contextInfo.style.display = 'none';
-    }
 
     this.state.currentSelection = null;
   }
@@ -1058,8 +938,11 @@ class TonePilotPanel {
     this.clearSelectedText();
   }
 
+
+
+
   /**
-   * Update website information
+   * Update website information in the UI
    */
   async updateWebsiteInfo() {
     try {
@@ -1158,10 +1041,6 @@ class TonePilotPanel {
       this.elements.textInputWrapper.style.display = 'none';
     }
 
-    const presetsElement = document.getElementById('presets');
-    if (presetsElement) {
-      presetsElement.style.display = 'none';
-    }
   }
 
   /**
@@ -1176,10 +1055,6 @@ class TonePilotPanel {
       this.elements.textInputWrapper.style.display = 'block';
     }
 
-    const presetsElement = document.getElementById('presets');
-    if (presetsElement) {
-      presetsElement.style.display = 'grid';
-    }
   }
 
   /**

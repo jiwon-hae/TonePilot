@@ -151,11 +151,6 @@
 
     .submit-btn { background: #c6cdce; color: #191a1a; }
     .submit-btn:hover { background: #525252; }
-
-    .tone-presets {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 12px; margin-bottom: 24px;
-    }
     .preset-btn {
       padding: 16px; border: 1px solid #404040; border-radius: 8px; background: #262626;
       cursor: pointer; text-align: left; transition: all 0.2s; color: #e4e4e7;
@@ -196,7 +191,7 @@
     .btn { padding: 10px 16px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer; transition: all 0.2s; font-size: 14px; }
     .btn-primary { background: #22c55e; color: white; flex: 1; }
     .btn-primary:hover:not(:disabled) { background: #16a34a; }
-    .btn-secondary { background: #262626; color: #e4e4e7; border: 1px solid #404040; }
+    .btn-secondary { background: none; color: #e4e4e7; }
     .btn-secondary:hover:not(:disabled) { background: #2a2a2a; border-color: #525252; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -212,7 +207,7 @@
 
     .result-content {
       background: #262626; border: 1px solid #404040; border-radius: 12px;
-      padding: 20px; margin-bottom: 16px; white-space: pre-wrap; line-height: 1.6;
+      padding: 20px; white-space: pre-wrap; line-height: 1.6;
       color: #e4e4e7; font-size: 15px;
     }
 
@@ -243,7 +238,6 @@
       text-align: center;
       margin-top: 12px;
       padding-top: 12px;
-      border-top: 1px solid #333;
     }
 
     .loading {
@@ -263,10 +257,7 @@
       border-radius: 8px; color: #fca5a5; margin: 12px 0;
     }
 
-    .context-info {
-      font-size: 12px; color: #71717a; margin-bottom: 8px; padding: 8px;
-      background: #262626; border: 1px solid #404040; border-radius: 6px;
-    }
+
 
     .website-info {
       display: flex; align-items: center; gap: 8px; padding: 6px 12px;
@@ -474,7 +465,6 @@
       </div>
 
       <div class="input-section">
-        <div id="contextInfo" class="context-info" style="display: none;"></div>
         <div id="selectedMediaDisplay" class="selected-media-display" style="display: none;">
           <div id="selectedMediaGrid" class="selected-media-grid">
             <!-- Multiple media thumbnails will be populated here -->
@@ -496,8 +486,6 @@
         </div>
       </div>
 
-      <div class="tone-presets" id="presets"></div>
-
       <div id="error" class="error" style="display: none;"></div>
       <div id="loading" class="loading" style="display: none;">
         <div class="spinner"></div>
@@ -513,8 +501,9 @@
         <div id="resultContent" class="result-content"></div>
 
         <div class="result-actions">
-          <button id="replaceBtn" class="btn btn-primary">Replace Selection</button>
-          <button id="copyBtn" class="btn btn-secondary">Copy</button>
+          <button id="copyBtn" class="btn btn-secondary">
+            <img src="../icons/copy.png" alt="Copy" style="width:10px; height:10px;" />
+          </button>
         </div>
       </div>
 
@@ -616,7 +605,6 @@
     </div>
   </div>
 
-  <script src="presets.js"></script>
   <script src="storage.js"></script>
   <script src="semanticRouting.js"></script>
   <script src="panel.js"></script>

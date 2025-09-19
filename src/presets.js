@@ -116,45 +116,6 @@ const TONE_PRESETS = {
   }
 };
 
-/**
- * Domain-specific adaptations for presets
- * Maps domains to their preferred defaults and contextual modifications
- * @const {Object<string, Object>}
- */
-const DOMAIN_ADAPTATIONS = {
-  'gmail.com': {
-    defaultPreset: 'diplomatic',
-    context: 'email',
-    adaptations: {
-      addSubjectSuggestion: true,
-      emailEtiquette: true
-    }
-  },
-  'linkedin.com': {
-    defaultPreset: 'diplomatic',
-    context: 'professional',
-    adaptations: {
-      professionalTone: true,
-      networkingFocus: true
-    }
-  },
-  'github.com': {
-    defaultPreset: 'concise',
-    context: 'technical',
-    adaptations: {
-      technicalAccuracy: true,
-      codeContext: true
-    }
-  },
-  'notion.so': {
-    defaultPreset: 'executive',
-    context: 'documentation',
-    adaptations: {
-      structuredOutput: true,
-      clarity: true
-    }
-  }
-};
 
 /**
  * Get a preset configuration by name
@@ -219,49 +180,16 @@ function _getPresetCategory(presetKey) {
   return 'general';
 }
 
-/**
- * Get domain-specific adaptation configuration
- * @param {string} domain - Domain to get adaptation for
- * @returns {Object|null} Domain adaptation or null if not found
- * @throws {Error} If domain is invalid
- */
-function getDomainAdaptation(domain) {
-  if (!domain || typeof domain !== 'string') {
-    throw new Error('Domain must be a non-empty string');
-  }
 
-  const normalizedDomain = domain.toLowerCase().trim();
-
-  // Find exact or partial domain matches
-  for (const [domainKey, adaptation] of Object.entries(DOMAIN_ADAPTATIONS)) {
-    if (normalizedDomain.includes(domainKey)) {
-      // Return a deep copy to prevent mutations
-      return JSON.parse(JSON.stringify(adaptation));
-    }
-  }
-
-  return null;
-}
-
-/**
- * Get the recommended preset for a domain
- * @param {string} domain - Domain to get preset for
- * @returns {string} Recommended preset name
- */
-function getRecommendedPreset(domain) {
-  const adaptation = getDomainAdaptation(domain);
-  return adaptation ? adaptation.defaultPreset : PRESET_CONSTANTS.DEFAULTS.PRESET;
-}
 
 /**
  * Build a complete prompt configuration for AI rewriting
  * @param {Object|string} preset - Preset object or preset name
  * @param {string} originalText - Original text to rewrite
- * @param {string} [domainContext=null] - Domain context for adaptations
  * @returns {Object} Complete prompt configuration
  * @throws {Error} If parameters are invalid
  */
-function buildPrompt(preset, originalText, domainContext = null) {
+function buildPrompt(preset, originalText) {
   // Validate inputs
   if (!originalText || typeof originalText !== 'string') {
     throw new Error('Original text must be a non-empty string');
@@ -286,23 +214,7 @@ function buildPrompt(preset, originalText, domainContext = null) {
 
   // Build base prompt
   let systemPrompt = presetConfig.systemPrompt;
-  let enhancedConstraints = { ...presetConfig.constraints };
-
-  // Apply domain adaptations if provided
-  if (domainContext) {
-    const adaptation = getDomainAdaptation(domainContext);
-    if (adaptation) {
-      systemPrompt += ` Context: ${adaptation.context}.`;
-
-      // Apply domain-specific constraint modifications
-      if (adaptation.adaptations) {
-        enhancedConstraints = {
-          ...enhancedConstraints,
-          ...adaptation.adaptations
-        };
-      }
-    }
-  }
+  const enhancedConstraints = { ...presetConfig.constraints };
 
   // Validate text length constraints
   const wordCount = originalText.split(/\s+/).length;
@@ -315,11 +227,9 @@ function buildPrompt(preset, originalText, domainContext = null) {
     constraints: enhancedConstraints,
     originalText: originalText.trim(),
     preset: presetConfig.name || 'Unknown',
-    domain: domainContext,
     metadata: {
       wordCount,
-      estimatedTokens: Math.ceil(wordCount * 1.3),
-      adaptationsApplied: !!domainContext
+      estimatedTokens: Math.ceil(wordCount * 1.3)
     }
   };
 }
@@ -383,12 +293,9 @@ function getAvailableCategories() {
 // Browser global exports
 if (typeof window !== 'undefined') {
   window.TONE_PRESETS = TONE_PRESETS;
-  window.DOMAIN_ADAPTATIONS = DOMAIN_ADAPTATIONS;
   window.PRESET_CONSTANTS = PRESET_CONSTANTS;
   window.getPresetByName = getPresetByName;
   window.getAllPresets = getAllPresets;
-  window.getDomainAdaptation = getDomainAdaptation;
-  window.getRecommendedPreset = getRecommendedPreset;
   window.buildPrompt = buildPrompt;
   window.validatePreset = validatePreset;
   window.getPresetsByCategory = getPresetsByCategory;
@@ -399,12 +306,9 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     TONE_PRESETS,
-    DOMAIN_ADAPTATIONS,
     PRESET_CONSTANTS,
     getPresetByName,
     getAllPresets,
-    getDomainAdaptation,
-    getRecommendedPreset,
     buildPrompt,
     validatePreset,
     getPresetsByCategory,
