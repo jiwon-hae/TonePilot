@@ -3,6 +3,8 @@
  * Manages the Chrome extension side panel interface
  */
 
+// SemanticRouter will be available as a window global from semanticRouting.js
+
 // Constants
 const CONSTANTS = {
   DEFAULTS: {
@@ -115,9 +117,6 @@ class TonePilotPanel {
       // Initialize UI components
       await this.initializeUIComponents();
 
-      // Initialize semantic router (non-blocking)
-      this.initializeSemanticRouter();
-
       this.updateStatus(CONSTANTS.STATUS_TYPES.READY, 'Ready');
 
     } catch (error) {
@@ -152,68 +151,6 @@ class TonePilotPanel {
   }
 
   /**
-   * Initialize semantic router in background
-   * Non-blocking to prevent UI hang
-   */
-  initializeSemanticRouter() {
-    setTimeout(async () => {
-      try {
-        console.log('🧠 Starting semantic router initialization...');
-
-        // Try TensorFlow mode first, fall back to simple mode
-        try {
-          await this.initializeRouterWithTensorFlow();
-        } catch (tfError) {
-          await this.initializeRouterSimpleMode();
-        }
-
-        this.state.routerReady = true;
-        console.log('✅ Semantic router initialized successfully');
-
-        // Update status if still initializing
-        if (this.elements.status?.textContent?.includes('Initializing')) {
-          this.updateStatus(CONSTANTS.STATUS_TYPES.READY, 'Ready (with routing)');
-        }
-      } catch (error) {
-        this.handleRouterInitializationError(error);
-      }
-    }, CONSTANTS.DEFAULTS.INITIALIZATION_TIMEOUT);
-  }
-
-  /**
-   * Initialize router with TensorFlow
-   */
-  async initializeRouterWithTensorFlow() {
-    if (typeof initSemanticRouter !== 'function') {
-      throw new Error('Semantic router not available');
-    }
-
-    await initSemanticRouter({ timeout: CONSTANTS.DEFAULTS.ROUTER_TIMEOUT });
-    console.log('🧠 TensorFlow semantic routing enabled');
-  }
-
-  /**
-   * Initialize router in simple mode
-   */
-  async initializeRouterSimpleMode() {
-    if (typeof initSemanticRouter !== 'function') {
-      throw new Error('Semantic router not available');
-    }
-
-    console.log('⚡ Using simple keyword routing');
-    await initSemanticRouter({ useSimpleMode: true });
-  }
-
-  /**
-   * Handle router initialization errors
-   */
-  handleRouterInitializationError(error) {
-    console.warn('⚠️ Semantic router failed to initialize:', error.message);
-    this.state.routerReady = false;
-    console.log('📝 Extension will work without semantic routing');
-  }
-
-  /**
    * Bind event listeners to UI elements
    */
   bindEvents() {
@@ -237,7 +174,7 @@ class TonePilotPanel {
       { element: 'copyBtn', handler: () => this.handleCopy() },
       { element: 'selectMediaBtn', handler: () => this.handleSelectMedia() },
       { element: 'cropBtn', handler: () => this.handleCrop() },
-      { element: 'submitBtn', handler: () => this.handleSubmit() }
+      { element: 'submitBtn', handler: async () => await this.handleSubmit() }
     ];
 
     buttonEvents.forEach(({ element, handler }) => {
@@ -666,7 +603,7 @@ class TonePilotPanel {
         await this.storage.saveRewrite({
           originalText,
           rewrittenText: results.primary,
-            domain: context.domain || 'unknown',
+          domain: context.domain || 'unknown',
           metadata: results.metadata
         });
       }
@@ -1689,11 +1626,224 @@ class TonePilotPanel {
   }
 
   /**
-   * Handle submit button click
+   * Handle submit button click - uses semantic routing
    */
-  handleSubmit() {
-    this.elements.inputText.text = '';
-    this.handleRouting();
+  async handleSubmit() {
+    const text = this.getInputText();
+
+    if (!text) {
+      this.showError('Please enter text to process.');
+      return;
+    }
+
+    if (text.length > CONSTANTS.LIMITS.MAX_TEXT_LENGTH) {
+      this.showError(`Text is too long. Please keep it under ${CONSTANTS.LIMITS.MAX_TEXT_LENGTH} characters.`);
+      return;
+    }
+
+    try {
+      this.showLoading();
+      this.hideError();
+
+      // Initialize semantic routing components
+      if (!this.taskService) {
+        if (typeof window.PromptService !== 'function') {
+          throw new Error('PromptService not available. Check script loading order.');
+        }
+        this.taskService = new window.PromptService("You are a precise, concise writing assistant.");
+      }
+      if (!this.proofreaderService) {
+        if (typeof window.ProofreaderService !== 'function') {
+          throw new Error('ProofreaderService not available. Check script loading order.');
+        }
+        this.proofreaderService = new window.ProofreaderService();
+      }
+      if (!this.summarizerService) {
+        if (typeof window.SummarizerService !== 'function') {
+          throw new Error('SummarizerService not available. Check script loading order.');
+        }
+        this.summarizerService = new window.SummarizerService();
+      }
+      if (!this.rewriterService) {
+        if (typeof window.RewriterService !== 'function') {
+          throw new Error('RewriterService not available. Check script loading order.');
+        }
+        this.rewriterService = new window.RewriterService();
+      }
+      if (!this.router) {
+        if (typeof window.SemanticRouter !== 'function') {
+          throw new Error('SemanticRouter not available. Check script loading order.');
+        }
+        this.router = new window.SemanticRouter();
+      }
+      const routingResult = await this.router.route(text);
+
+      console.log('🎯 Routing result:', routingResult.intent);
+
+      let result;
+      const selectedText = this.state.currentSelection?.text || '';
+
+      switch (routingResult.intent) {
+        case 'proofread':
+          result = await this.executeProofread(selectedText || text);
+          break;
+        case 'revise':
+          result = await this.executeRevise(text, selectedText);
+          break;
+        case 'draft':
+          result = await this.executeDraft(text, selectedText);
+          break;
+        case 'summarize':
+          result = await this.executeSummarize(selectedText || text);
+          break;
+        default:
+          result = await this.executeRevise(text, selectedText); // Default to revise
+      }
+
+      // Create results object and display
+      const results = {
+        primary: result,
+        alternatives: [
+          `[${routingResult.intent.toUpperCase()}] ${result}`,
+          `[ALT] ${result}`
+        ],
+        metadata: {
+          intent: routingResult.intent,
+          score: routingResult.score,
+          via: routingResult.via,
+          timestamp: new Date().toISOString()
+        }
+      };
+
+      this.state.currentResults = results;
+      this.showResults(results, text);
+
+    } catch (error) {
+      console.error('Semantic routing error:', error);
+      this.showError(`Error processing text: ${error.message}`);
+    } finally {
+      this.hideLoading();
+    }
+  }
+
+  /**
+   * Execute proofreading task using Chrome Proofreader API
+   */
+  async executeProofread(text) {
+    try {
+      // Try Chrome Proofreader API first
+      if (this.proofreaderService) {
+        const result = await this.proofreaderService.proofread(text);
+
+        // If Chrome Proofreader made corrections, return them
+        if (result.hasChanges) {
+          console.log(`✅ Chrome Proofreader made ${result.metadata.correctionCount} corrections`);
+          return result.corrected;
+        }
+
+        // If no corrections needed, return original
+        console.log('✅ Chrome Proofreader: No corrections needed');
+        return result.corrected;
+      }
+    } catch (error) {
+      console.warn('Chrome Proofreader failed, falling back to language model:', error.message);
+    }
+
+    // Fallback to language model if Chrome Proofreader unavailable
+    const prompt = `Please proofread and correct any grammar, spelling, or punctuation errors in the following text. Return only the corrected text:\n\n${text}`;
+    return await this.taskService.send(prompt);
+  }
+
+  /**
+   * Execute revision task using Chrome Rewriter API
+   */
+  async executeRevise(text, goal = null) {
+    try {
+      // Try Chrome Rewriter API first
+      if (this.rewriterService) {
+        // Map goals to rewriter configuration
+        const goalToConfig = {
+          'formal': { tone: 'more-formal' },
+          'casual': { tone: 'more-casual' },
+          'concise': { length: 'shorter' },
+          'detailed': { length: 'longer' },
+          'professional': { tone: 'more-formal', format: 'markdown' },
+          'friendly': { tone: 'more-casual' }
+        };
+
+        const config = goalToConfig[goal] || { tone: 'as-is', length: 'as-is' };
+
+        const result = await this.rewriterService.rewrite(text, {
+          ...config,
+          context: goal ? `Revise to be more ${goal}` : 'Improve clarity and readability'
+        });
+
+        if (result.hasChanges) {
+          console.log(`✅ Chrome Rewriter revised text (${result.metadata.lengthChange > 0 ? '+' : ''}${result.metadata.lengthChange} chars)`);
+          return result.rewritten;
+        }
+
+        console.log('✅ Chrome Rewriter: Text already optimal');
+        return result.rewritten;
+      }
+    } catch (error) {
+      console.warn('Chrome Rewriter failed, falling back to language model:', error.message);
+    }
+
+    // Fallback to language model if Chrome Rewriter unavailable
+    let prompt = `Please revise the following text to improve clarity, conciseness, and readability`;
+    if (goal) {
+      prompt += ` with a focus on making it more ${goal}`;
+    }
+    prompt += `:\n\n${text}`;
+    return await this.taskService.send(prompt);
+  }
+
+  /**
+   * Execute drafting task
+   */
+  async executeDraft(instructions) {
+    const prompt = `Please write content based on these instructions: ${instructions}`;
+    return await this.taskService.send(prompt);
+  }
+
+  /**
+   * Execute summarization task using Chrome Summarizer API
+   */
+  async executeSummarize(text, summaryType = 'key-points', length = 'medium') {
+    try {
+      // Try Chrome Summarizer API first
+      if (this.summarizerService) {
+        const result = await this.summarizerService.summarize(text, {
+          type: summaryType,
+          length: length
+        });
+
+        console.log(`✅ Chrome Summarizer generated ${summaryType} summary (${length} length)`);
+        console.log(`📊 Compression ratio: ${(result.metadata.compressionRatio * 100).toFixed(1)}%`);
+
+        return result.summary;
+      }
+    } catch (error) {
+      console.warn('Chrome Summarizer failed, falling back to language model:', error.message);
+    }
+
+    // Fallback to language model if Chrome Summarizer unavailable
+    const summaryTypeMap = {
+      'key-points': 'key points in bullet format',
+      'tldr': 'a concise TL;DR summary',
+      'teaser': 'an engaging teaser highlighting the most interesting parts',
+      'headline': 'a single sentence headline summary'
+    };
+
+    const lengthMap = {
+      'short': 'very brief',
+      'medium': 'moderately detailed',
+      'long': 'comprehensive'
+    };
+
+    const prompt = `Please create ${summaryTypeMap[summaryType] || 'a summary'} of the following text. Make it ${lengthMap[length] || 'appropriately sized'}:\n\n${text}`;
+    return await this.taskService.send(prompt);
   }
 }
 

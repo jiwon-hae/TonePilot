@@ -1316,7 +1316,97 @@
   </div>
 
   <script src="../services/storageService.js"></script>
-  <script src="../semanticRouting.js"></script>
+  <script>
+    // PromptService - Converted from ES6 module to window global
+    class PromptService {
+      constructor(systemPrompt = "You are a precise and concise assistant.") {
+        this.session = null;
+        this.system = systemPrompt;
+      }
+
+      async ensure() {
+        if (!this.session) {
+          const api = window?.ai?.languageModel;
+          if (!api) {
+            throw new Error("Google Prompt API not available in this environment.");
+          }
+          this.session = await api.create({
+            initialPrompts: [{ role: "system", content: this.system }],
+          });
+        }
+        return this.session;
+      }
+
+      async init(initialPrompt) {
+        this.system = initialPrompt;
+        this.session = null;
+        await this.ensure();
+      }
+
+      async send(input) {
+        const s = await this.ensure();
+        const res = await s?.prompt(input);
+        const out = res?.output ?? res?.output_text ?? "";
+        return String(out).trim();
+      }
+    }
+
+    // SemanticRouter - Simplified version converted from ES6 module
+    class SemanticRouter {
+      constructor(classifierPrompt = new PromptService("You are an intent classifier. Only output minified JSON.")) {
+        this.classifier = classifierPrompt;
+        this.threshold = 0.55;
+
+        // Fast patterns for classification
+        this.patterns = {
+          proofread: /\b(proofread|grammar|spelling|typo|punctuation|correct)\b/i,
+          revise: /\b(revise|rewrite|rephrase|improve|clarity|concise|tone|formal|casual|polish)\b/i,
+          draft: /\b(draft|write|compose|email|cover\s*letter|blog|message|outreach)\b/i,
+        };
+      }
+
+      async route(input) {
+        const query = (input || "").trim().toLowerCase();
+
+        // Fast pattern matching first
+        for (const [intent, pattern] of Object.entries(this.patterns)) {
+          if (pattern.test(query)) {
+            return {
+              intent,
+              score: 0.9,
+              via: "patterns"
+            };
+          }
+        }
+
+        // Fallback to 'revise' for unmatched queries
+        return {
+          intent: 'revise',
+          score: 0.7,
+          via: 'fallback'
+        };
+      }
+
+      normalize(input, intent) {
+        const text = (input || "").trim();
+
+        switch (intent) {
+          case "proofread":
+            return { type: "proofread", text };
+          case "revise":
+            return { type: "revise", text, goal: null };
+          case "draft":
+            return { type: "draft", instructions: text };
+          default:
+            return { type: "other", text };
+        }
+      }
+    }
+
+    // Export to window globals
+    window.PromptService = PromptService;
+    window.SemanticRouter = SemanticRouter;
+  </script>
   <script src="panel.js"></script>
 
   <!-- Input is now in footer, no special scroll handling needed -->
