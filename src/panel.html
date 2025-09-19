@@ -78,11 +78,11 @@
 
     .main-content {
       padding: 0 20px 20px 20px;
-      /* ★ Added/updated for sticky input */
       flex: 1;
       display: flex;
       flex-direction: column;
-      overflow: auto; /* this becomes the scroll container */
+      overflow-y: auto;
+      overflow-x: hidden;
     }
 
     .tab-navigation { display: flex; border-bottom: 1px solid #333; margin-bottom: 24px; }
@@ -101,11 +101,9 @@
 
     .input-section {
       margin-bottom: 24px;
-      /* ★ Added/updated for sticky input */
       display: flex;
       flex-direction: column;
       gap: 12px;
-      min-height: 0; /* avoids flex overflow in scroll container */
     }
 
     .input-container {
@@ -239,7 +237,14 @@
 
     .result-actions { display: flex; gap: 8px; }
 
-    .footer { margin-top: 20px; padding: 16px 20px; border-top: 1px solid #333; font-size: 12px; color: #71717a; text-align: center; }
+    .footer-content {
+      font-size: 12px;
+      color: #71717a;
+      text-align: center;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #333;
+    }
 
     .loading {
       display: flex; align-items: center; gap: 8px; padding: 12px;
@@ -278,17 +283,21 @@
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
 
-    .text-input-wrapper {
-      background: #262626; border-radius: 12px; overflow: hidden; border: 1px solid transparent;
-
-      /* ★ Added/updated for sticky input */
-      margin-top: auto;          /* pushes it to the bottom of .input-section */
-      position: sticky;          /* pins to bottom when scrolled */
-      bottom: 0;
-      /* background: #1a1a1a;       solid base to cover content beneath */
-      padding-top: 8px;          /* slight spacing from content above */
+    .footer {
+      margin-top: auto;
+      padding: 16px 20px;
       border-top: 1px solid #333;
-      z-index: 1;
+      background: #1a1a1a;
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+    }
+
+    .text-input-wrapper {
+      background: #262626;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid transparent;
     }
 
     .selected-text-display { background: #262626; border: none; border-radius: 0; overflow: hidden; box-shadow: none; margin-bottom: 0; }
@@ -472,30 +481,6 @@
           </div>
         </div>
 
-        <!-- ★ textInputWrapper now sticks to the bottom of the scrolling panel -->
-        <div id="textInputWrapper" class="text-input-wrapper">
-          <div id="websiteInfo" class="website-info" style="display: none;">
-            <div class="website-icon">🌐</div>
-            <div class="website-details">
-              <div class="website-name" id="websiteName">Loading...</div>
-              <div class="website-url" id="websiteUrl">Loading...</div>
-            </div>
-          </div>
-          <div id="selectedTextDisplay" class="selected-text-display" style="display: none;">
-            <div id="selectedTextContent" class="selected-text-content"></div>
-          </div>
-          <div class="input-container">
-            <textarea id="inputText" class="input-text" placeholder="Ask anything..."></textarea>
-            <div class="input-actions">
-              <button id="cropBtn" class="input-action-btn" title="Crop">
-                <img src="../icons/crop.png" alt="Crop" style="width:16px; height:16px;" />
-              </button>
-              <button id="submitBtn" class="input-action-btn submit-btn" title="Submit">
-                <img src="../icons/submit.png" alt="Submit" style="width:16px; height:16px;" />
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div id="sourcesPanel" class="sources-panel" style="display: none;">
@@ -558,6 +543,34 @@
         </div>
       </div>
     </div>
+
+    <!-- Footer with input controls -->
+    <div class="footer">
+      <div id="textInputWrapper" class="text-input-wrapper">
+        <div id="websiteInfo" class="website-info" style="display: none;">
+          <div class="website-icon">🌐</div>
+          <div class="website-details">
+            <div class="website-name" id="websiteName">Loading...</div>
+            <div class="website-url" id="websiteUrl">Loading...</div>
+          </div>
+        </div>
+  
+        <div id="selectedTextDisplay" class="selected-text-display" style="display: none;">
+          <div id="selectedTextContent" class="selected-text-content"></div>
+        </div>
+        <div class="input-container">
+          <textarea id="inputText" class="input-text" placeholder="Ask anything..."></textarea>
+          <div class="input-actions">
+            <button id="cropBtn" class="input-action-btn" title="Crop">
+              <img src="../icons/crop.png" alt="Crop" style="width:16px; height:16px;" />
+            </button>
+            <button id="submitBtn" class="input-action-btn submit-btn" title="Submit">
+              <img src="../icons/submit.png" alt="Submit" style="width:16px; height:16px;" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Settings Popup -->
@@ -608,17 +621,6 @@
   <script src="semanticRouting.js"></script>
   <script src="panel.js"></script>
 
-  <!-- Optional: ensure the sticky input is visible on focus in small viewports -->
-  <script>
-    (function () {
-      const ta = document.getElementById('inputText');
-      const scroller = document.querySelector('.main-content');
-      if (ta && scroller) {
-        ta.addEventListener('focus', () => {
-          scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
-        });
-      }
-    })();
-  </script>
+  <!-- Input is now in footer, no special scroll handling needed -->
 </body>
 </html>
