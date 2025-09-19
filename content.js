@@ -193,10 +193,12 @@ function replaceSelection(newText) {
 }
 
 function getPageMedia() {
+  console.log('🔍 Scanning page for media...');
   const media = [];
 
   // Get all images
   const images = document.querySelectorAll('img');
+  console.log(`🖼️ Found ${images.length} img elements`);
   images.forEach((img, index) => {
     if (img.src && img.width > 50 && img.height > 50) { // Filter out small images
       // Create unique identifier for the element
@@ -217,6 +219,7 @@ function getPageMedia() {
 
   // Get all videos
   const videos = document.querySelectorAll('video');
+  console.log(`🎥 Found ${videos.length} video elements`);
   videos.forEach((video, index) => {
     const elementId = `tonepilot-video-${Date.now()}-${index}`;
     video.setAttribute('data-tonepilot-id', elementId);
@@ -257,6 +260,7 @@ function getPageMedia() {
     }
   });
 
+  console.log(`📊 Total media found: ${media.length}`);
   return media;
 }
 
@@ -308,7 +312,12 @@ function highlightElement(element) {
   }, 2000);
 }
 
+// Log that content script is loaded
+console.log('🚀 TonePilot content script loaded');
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('🎯 Content script received message:', message);
+
   if (message.action === 'getSelection') {
     const selectionData = getSelectionData();
     if (selectionData) {
@@ -336,7 +345,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'getPageMedia') {
+    console.log('📸 Getting page media...');
     const mediaData = getPageMedia();
+    console.log('📸 Found media:', mediaData);
     sendResponse({ media: mediaData });
   }
 

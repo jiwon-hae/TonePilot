@@ -400,24 +400,42 @@ class TonePilotPanel {
   /**
    * Load page media from content script
    */
-  async loadPageMedia() {
+  async loadPageMedia(retryCount = 0) {
+    const maxRetries = 3;
+
     try {
-      console.log('🔍 Requesting page media from content script...');
+      console.log(`🔍 Requesting page media from content script... (attempt ${retryCount + 1})`);
+
+      // Add a small delay to ensure content script is ready
+      if (retryCount === 0) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
       const response = await this.messageHandler.sendToContentScript('getPageMedia');
       console.log('📦 Content script response:', response);
 
       if (response && response.media) {
         this.displayPageMedia(response.media);
         console.log(`📸 Loaded ${response.media.length} media items`);
+      } else if (response === undefined && retryCount < maxRetries) {
+        console.log(`⏳ No response, retrying in ${(retryCount + 1) * 1000}ms...`);
+        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000));
+        return this.loadPageMedia(retryCount + 1);
       } else {
-        console.log('⚠️ No media data in response');
-        // Show empty state
+        console.log('⚠️ No media data in response after retries');
         this.displayPageMedia([]);
       }
     } catch (error) {
-      console.error('❌ Failed to load page media:', error);
-      // Show empty state on error
-      this.displayPageMedia([]);
+      console.error(`❌ Failed to load page media (attempt ${retryCount + 1}):`, error);
+
+      if (retryCount < maxRetries) {
+        console.log(`⏳ Retrying in ${(retryCount + 1) * 1000}ms...`);
+        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000));
+        return this.loadPageMedia(retryCount + 1);
+      } else {
+        console.error('❌ All retry attempts failed');
+        this.displayPageMedia([]);
+      }
     }
   }
 

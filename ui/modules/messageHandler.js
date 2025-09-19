@@ -202,7 +202,8 @@ class TonePilotMessageHandler {
    */
   async sendToContentScript(action, data = {}) {
     try {
-      const message = { action, data };
+      // For simple actions without data, send just the action
+      const message = Object.keys(data).length === 0 ? { action } : { action, ...data };
 
       // Get active tab
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -213,6 +214,7 @@ class TonePilotMessageHandler {
       // Send message to content script
       const response = await chrome.tabs.sendMessage(tab.id, message);
       console.log('📤 Message sent to content script:', message);
+      console.log('📨 Response from content script:', response);
       return response;
 
     } catch (error) {
