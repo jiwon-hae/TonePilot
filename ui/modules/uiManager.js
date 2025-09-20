@@ -95,6 +95,13 @@ class TonePilotUIManager {
       // Tab navigation
       this.bindTabEvents();
 
+      // Input textarea keyboard events
+      if (this.elements.inputText) {
+        const keydownHandler = (e) => this.handleInputKeydown(e);
+        this.elements.inputText.addEventListener('keydown', keydownHandler);
+        this.eventListeners.push({ element: this.elements.inputText, event: 'keydown', handler: keydownHandler });
+      }
+
       // Document click for modal close
       const documentClickHandler = (e) => this.handleDocumentClick(e);
       document.addEventListener('click', documentClickHandler);
@@ -298,8 +305,8 @@ class TonePilotUIManager {
     resultSection.innerHTML = `
       <div class="result-tabs">
         <button class="result-tab active" data-tab="primary">Primary</button>
-        <button class="result-tab" data-tab="alt1">Alternative 1</button>
-        <button class="result-tab" data-tab="alt2">Alternative 2</button>
+        <button class="result-tab" data-tab="alt1" style="display: none;">Alternative 1</button>
+        <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
       </div>
       <div class="loading-area"></div>
       <div class="result-content" style="display: none;"></div>
@@ -340,6 +347,7 @@ class TonePilotUIManager {
       const queryStyle = window.getComputedStyle(queryDisplay);
       const queryMargins = parseFloat(queryStyle.marginTop) + parseFloat(queryStyle.marginBottom);
 
+      // Get tab container height (Primary tab is visible during loading)
       const tabsElement = resultSection.querySelector('.result-tabs');
       const tabsHeight = tabsElement.offsetHeight || 40;
       const tabsStyle = window.getComputedStyle(tabsElement);
@@ -350,17 +358,20 @@ class TonePilotUIManager {
       const containerMargins = parseFloat(containerStyle.marginTop) + parseFloat(containerStyle.marginBottom);
 
       // Calculate height for loading area to fill remaining space
-      // During loading: queryDisplay + result-tabs + loading-area should = availableHeight
+      // During loading: queryDisplay + result-tabs (with Primary) + loading-area are visible
       const loadingAreaTargetHeight = availableHeight - queryHeight - queryMargins - tabsHeight - tabsMargins - containerMargins;
 
       // Set height on the VISIBLE loading area (not hidden result-content)
       loadingArea.style.height = `${Math.max(100, loadingAreaTargetHeight)}px`;
       loadingArea.style.minHeight = `${Math.max(100, loadingAreaTargetHeight)}px`;
+      // Ensure loading area is visible and properly styled
+      loadingArea.style.display = 'block';
+      loadingArea.style.visibility = 'visible';
       
       // Don't set height on result-content during loading since it's hidden
       resultContent.style.flex = 'none'; // Still override flex behavior
 
-      console.log('📐 Corrected loading height calculation:', {
+      console.log('📐 Loading height (Primary tab visible):', {
         viewportHeight,
         headerHeight,
         footerHeight,
@@ -370,7 +381,8 @@ class TonePilotUIManager {
           queryMargins,
           tabsHeight,
           tabsMargins,
-          containerMargins
+          containerMargins,
+          note: 'Primary tab visible, alternatives hidden'
         },
         loadingAreaTargetHeight,
         expectedTotalHeight: queryHeight + queryMargins + tabsHeight + tabsMargins + loadingAreaTargetHeight + containerMargins,
@@ -379,6 +391,7 @@ class TonePilotUIManager {
     });
 
     // Start loading animation in this new container
+    console.log('🎬 Starting loading animation in:', loadingArea);
     this.startLoadingInContainer(loadingArea);
 
     return {
@@ -395,6 +408,13 @@ class TonePilotUIManager {
    * @param {HTMLElement} contentElement - The content element to show loading in
    */
   startLoadingInContainer(contentElement) {
+    console.log('🎬 startLoadingInContainer called with:', contentElement);
+
+    if (!contentElement) {
+      console.error('❌ No contentElement provided to startLoadingInContainer');
+      return;
+    }
+
     const loadingMessages = [
       '* Chroming it…',
       '* Nano-boosting…',
@@ -411,15 +431,30 @@ class TonePilotUIManager {
 
     // Set initial message
     contentElement.innerHTML = `<div class="loading-message">${loadingMessages[0]}</div>`;
+    console.log('🎬 Set initial loading message:', loadingMessages[0]);
 
     // Start cycling through messages
     this.loadingInterval = setInterval(() => {
       messageIndex = (messageIndex + 1) % loadingMessages.length;
       const messageElement = contentElement.querySelector('.loading-message');
       if (messageElement) {
+        // Update text content
         messageElement.textContent = loadingMessages[messageIndex];
+
+        // Restart the animation by removing and re-adding the animation
+        messageElement.style.animation = 'none';
+        // Force a reflow to ensure the animation is removed
+        messageElement.offsetHeight;
+        // Re-apply the animation (1.5s to match message interval)
+        messageElement.style.animation = 'fadeInOut 1.5s ease-in-out';
+
+        console.log('🔄 Updated loading message with animation restart:', loadingMessages[messageIndex]);
+      } else {
+        console.warn('⚠️ Loading message element not found');
       }
     }, 1500);
+
+    console.log('🎬 Loading animation interval started');
   }
 
 
@@ -427,9 +462,13 @@ class TonePilotUIManager {
    * Stop loading animation
    */
   stopLoadingAnimation() {
+    console.log('🛑 stopLoadingAnimation called, interval exists:', !!this.loadingInterval);
     if (this.loadingInterval) {
       clearInterval(this.loadingInterval);
       this.loadingInterval = null;
+      console.log('🛑 Loading animation stopped');
+    } else {
+      console.warn('⚠️ No loading interval to stop');
     }
   }
 
@@ -453,6 +492,31 @@ class TonePilotUIManager {
     // Hide loading area and show results
     if (conversationContainer && conversationContainer.loadingArea) {
       conversationContainer.loadingArea.style.display = 'none';
+    } else {
+      console.warn('⚠️ loadingArea not found in conversationContainer:', conversationContainer);
+    }
+
+    // Show alternative tabs based on available data
+    if (conversationContainer && conversationContainer.resultSection) {
+      // Show Alternative 1 tab if data exists
+      if (results.alt1) {
+        const alt1Tab = conversationContainer.resultSection.querySelector('[data-tab="alt1"]');
+        if (alt1Tab) {
+          alt1Tab.style.display = 'block';
+        } else {
+          console.warn('⚠️ alt1Tab not found');
+        }
+      }
+
+      // Show Alternative 2 tab if data exists
+      if (results.alt2) {
+        const alt2Tab = conversationContainer.resultSection.querySelector('[data-tab="alt2"]');
+        if (alt2Tab) {
+          alt2Tab.style.display = 'block';
+        } else {
+          console.warn('⚠️ alt2Tab not found');
+        }
+      }
     }
 
     // Update the result content in the specific container
@@ -472,7 +536,11 @@ class TonePilotUIManager {
       const resultActions = conversationContainer.resultSection.querySelector('.result-actions');
       if (resultActions) {
         resultActions.style.display = 'flex';
+      } else {
+        console.warn('⚠️ resultActions not found');
       }
+    } else {
+      console.warn('⚠️ resultSection not found in conversationContainer:', conversationContainer);
     }
 
     // Add filler space if the last container is shorter than viewport
@@ -776,6 +844,50 @@ class TonePilotUIManager {
   handleDocumentClick(e) { console.log('Document clicked:', e); }
   handleOpenMedia() { console.log('Media popup opened'); }
   handleCloseMedia() { console.log('Media popup closed'); }
+
+  /**
+   * Handle keyboard events in the input textarea
+   * Enter = submit, Shift+Enter = new line
+   */
+  handleInputKeydown(e) {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        // Shift+Enter: Insert new line
+        e.preventDefault();
+        const textarea = e.target;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const value = textarea.value;
+
+        // Insert newline at cursor position
+        textarea.value = value.substring(0, start) + '\n' + value.substring(end);
+
+        // Move cursor after the newline
+        textarea.selectionStart = textarea.selectionEnd = start + 1;
+
+        // Trigger input event to notify of value change
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        // Enter alone: Submit
+        e.preventDefault();
+        // Trigger submit button click with visual feedback
+        if (this.elements.submitBtn) {
+          // Add visual click effect (hover + active states)
+          this.elements.submitBtn.style.background = 'var(--hover-border)';
+          this.elements.submitBtn.style.transform = 'scale(0.95)';
+
+          // Trigger the actual click
+          this.elements.submitBtn.click();
+
+          // Remove visual effect after a short delay
+          setTimeout(() => {
+            this.elements.submitBtn.style.background = '';
+            this.elements.submitBtn.style.transform = '';
+          }, 150);
+        }
+      }
+    }
+  }
 }
 
 // Export to window for Chrome extension compatibility
