@@ -100,6 +100,14 @@ class TonePilotUIManager {
         const keydownHandler = (e) => this.handleInputKeydown(e);
         this.elements.inputText.addEventListener('keydown', keydownHandler);
         this.eventListeners.push({ element: this.elements.inputText, event: 'keydown', handler: keydownHandler });
+
+        // Input change events for submit button state
+        const inputHandler = () => this.updateSubmitButtonState();
+        this.elements.inputText.addEventListener('input', inputHandler);
+        this.eventListeners.push({ element: this.elements.inputText, event: 'input', handler: inputHandler });
+
+        // Initialize submit button state
+        this.updateSubmitButtonState();
       }
 
       // Document click for modal close
@@ -818,6 +826,29 @@ class TonePilotUIManager {
   setInputText(text) {
     if (this.elements.inputText) {
       this.elements.inputText.value = text;
+      // Update submit button state after setting text
+      this.updateSubmitButtonState();
+    }
+  }
+
+  /**
+   * Update submit button disabled state based on input content
+   */
+  updateSubmitButtonState() {
+    if (this.elements.submitBtn && this.elements.inputText) {
+      const text = this.elements.inputText.value;
+      const isEmpty = !text || text.trim() === '';
+
+      this.elements.submitBtn.disabled = isEmpty;
+
+      // Add visual styling for disabled state
+      if (isEmpty) {
+        this.elements.submitBtn.style.opacity = '0.5';
+        this.elements.submitBtn.style.cursor = 'not-allowed';
+      } else {
+        this.elements.submitBtn.style.opacity = '';
+        this.elements.submitBtn.style.cursor = '';
+      }
     }
   }
 
@@ -868,10 +899,10 @@ class TonePilotUIManager {
         // Trigger input event to notify of value change
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
       } else {
-        // Enter alone: Submit
+        // Enter alone: Submit (only if button is not disabled)
         e.preventDefault();
-        // Trigger submit button click with visual feedback
-        if (this.elements.submitBtn) {
+
+        if (this.elements.submitBtn && !this.elements.submitBtn.disabled) {
           // Add visual click effect (hover + active states)
           this.elements.submitBtn.style.background = 'var(--hover-border)';
           this.elements.submitBtn.style.transform = 'scale(0.95)';
