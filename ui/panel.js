@@ -306,13 +306,14 @@ class TonePilotPanel {
     this.uiManager.handleSaveSettings = () => this.settingsManager.handleSaveSettings();
     this.uiManager.handleTabSwitch = (tab) => this.handleTabSwitch(tab);
     this.uiManager.handleDocumentClick = (e) => this.handleDocumentClick(e);
+    this.uiManager.handleOpenMedia = () => this.handleOpenMedia();
+    this.uiManager.handleCloseMedia = () => this.handleCloseMedia();
   }
 
   /**
    * Handle text submission and processing
    */
   async handleSubmit() {
-    console.log('🚀 handleSubmit called in panel.js');
     try {
       const inputText = this.uiManager.getInputText();
       console.log('📝 Input text:', inputText);
@@ -460,36 +461,9 @@ class TonePilotPanel {
     // Add active class to clicked tab
     tabButton.classList.add('active');
 
-    // Show/hide panels based on tab
-    const tabText = tabButton.textContent.toLowerCase();
-    if (tabText.includes('sources') || tabText.includes('media')) {
-      this.showSourcesPanel();
-      // Refresh media when media tab is shown
-      if (tabText.includes('media')) {
-        this.loadPageMedia();
-      }
-    } else {
-      this.hideSourcesPanel();
-    }
+    // For now, only Assistant tab exists, so no tab-specific actions needed
   }
 
-  /**
-   * Show sources panel
-   */
-  showSourcesPanel() {
-    if (this.uiManager.elements.sourcesPanel) {
-      this.uiManager.elements.sourcesPanel.style.display = 'block';
-    }
-  }
-
-  /**
-   * Hide sources panel
-   */
-  hideSourcesPanel() {
-    if (this.uiManager.elements.sourcesPanel) {
-      this.uiManager.elements.sourcesPanel.style.display = 'none';
-    }
-  }
 
   /**
    * Handle document click events
@@ -511,8 +485,48 @@ class TonePilotPanel {
           !this.uiManager.elements.settingsBtn.contains(event.target)) {
         this.settingsManager.closeSettings();
       }
+
+      // Close media popup when clicking outside
+      if (this.uiManager.elements.mediaPopup &&
+          this.uiManager.elements.mediaPopup.style.display !== 'none' &&
+          event.target.classList.contains('media-popup-overlay')) {
+        this.handleCloseMedia();
+      }
     } catch (error) {
       console.error('❌ Document click handling failed:', error);
+    }
+  }
+
+  /**
+   * Open media popup
+   */
+  handleOpenMedia() {
+    try {
+      console.log('📸 Opening media popup...');
+
+      if (this.uiManager.elements.mediaPopup) {
+        this.uiManager.elements.mediaPopup.style.display = 'flex';
+      }
+
+      // Request page media if not already loaded
+      this.messageHandler.requestPageMedia();
+    } catch (error) {
+      console.error('❌ Failed to open media popup:', error);
+    }
+  }
+
+  /**
+   * Close media popup
+   */
+  handleCloseMedia() {
+    try {
+      console.log('📸 Closing media popup...');
+
+      if (this.uiManager.elements.mediaPopup) {
+        this.uiManager.elements.mediaPopup.style.display = 'none';
+      }
+    } catch (error) {
+      console.error('❌ Failed to close media popup:', error);
     }
   }
 

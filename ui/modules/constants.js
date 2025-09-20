@@ -31,10 +31,11 @@ const TONEPILOT_CONSTANTS = {
       'status', 'inputText', 'loading', 'error',
       'resultSection', 'resultContent', 'queryDisplay', 'replaceBtn', 'copyBtn', 'websiteInfo',
       'websiteName', 'websiteUrl', 'selectedTextDisplay', 'selectedTextContent',
-      'textInputWrapper', 'sourcesPanel', 'mediaGrid',
+      'textInputWrapper', 'mediaGrid',
       'mediaCount', 'selectMediaBtn', 'selectedMediaDisplay', 'selectedMediaGrid',
       'settingsBtn', 'settingsPopup', 'closeSettingsBtn', 'saveSettingsBtn',
-      'maxCharactersInput', 'formalityTogglePopup', 'cropBtn', 'submitBtn'
+      'maxCharactersInput', 'formalityTogglePopup', 'cropBtn', 'submitBtn',
+      'mediaBtn', 'mediaPopup', 'closeMediaBtn'
     ],
     SELECTORS: {
       inputContainer: '.input-container'
