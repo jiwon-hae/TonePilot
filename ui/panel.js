@@ -5,6 +5,7 @@
 
 class TonePilotPanel {
   constructor() {
+    console.log('🎬 TonePilotPanel constructor called');
     this.initializeManagers();
     this.initialize().catch(this.handleFatalError.bind(this));
   }
@@ -13,10 +14,14 @@ class TonePilotPanel {
    * Initialize manager instances
    */
   initializeManagers() {
+    console.log('🔧 initializeManagers called');
     try {
       // Initialize core managers
+      console.log('📦 Creating TonePilotStateManager...');
       this.stateManager = new window.TonePilotStateManager();
+      console.log('📦 Creating TonePilotUIManager...');
       this.uiManager = new window.TonePilotUIManager(this.stateManager);
+      console.log('📦 Creating TonePilotMessageHandler...');
       this.messageHandler = new window.TonePilotMessageHandler(this.stateManager, this.uiManager);
       this.settingsManager = new window.TonePilotSettingsManager(this.stateManager, this.uiManager);
       this.aiServicesManager = new window.TonePilotAIServicesManager(this.stateManager, this.uiManager);
@@ -307,8 +312,11 @@ class TonePilotPanel {
    * Handle text submission and processing
    */
   async handleSubmit() {
+    console.log('🚀 handleSubmit called in panel.js');
     try {
       const inputText = this.uiManager.getInputText();
+      console.log('📝 Input text:', inputText);
+      this.uiManager.setInputText('');
       const selectionState = this.stateManager.getSelectionState();
 
       if (!inputText.trim() && !selectionState.hasSelection) {
@@ -316,12 +324,22 @@ class TonePilotPanel {
         return;
       }
 
-      // Process text through AI services
-      const results = await this.aiServicesManager.processText(inputText, selectionState.currentSelection);
+      // 1. Create container with new query and tabs, append to chat history
+      const conversationContainer = this.uiManager.createNewConversation(inputText);
 
-      // Update state and UI
+      // 2. Start using the service API (async)
+      const resultsPromise = this.aiServicesManager.processText(inputText, selectionState.currentSelection);
+
+      // 3. (Scroll happens automatically in createNewConversation)
+
+      // 4. Wait for results and display them in the specific container
+      const results = await resultsPromise;
+
+      // Update state
       this.stateManager.setState('currentResults', results);
-      this.uiManager.showResults(results, inputText);
+
+      // Display results in the conversation container
+      this.uiManager.showResults(results, conversationContainer);
 
       // Save to history if available
       if (this.storage) {

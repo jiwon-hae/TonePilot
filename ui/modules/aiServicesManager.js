@@ -86,7 +86,7 @@ class TonePilotAIServicesManager {
       return true;
     } catch (error) {
       console.error('❌ AI services initialization failed:', error);
-      this.uiManager.showError('AI services initialization failed');
+      // Don't show error UI box - let the extension continue with fallbacks
       return false;
     }
   }
@@ -99,7 +99,6 @@ class TonePilotAIServicesManager {
    */
   async processText(inputText, selectionData) {
     try {
-      this.uiManager.showLoading();
       this.uiManager.hideError();
 
       // Route the input to determine intent
@@ -128,7 +127,7 @@ class TonePilotAIServicesManager {
           break;
       }
 
-      this.uiManager.hideLoading();
+      // Loading will be replaced by showResults, no need to explicitly hide
       return {
         ...result,
         intent: routing.intent,
@@ -137,9 +136,16 @@ class TonePilotAIServicesManager {
       };
 
     } catch (error) {
-      this.uiManager.hideLoading();
+      // Stop loading animation and show error in the result content area
+      this.uiManager.stopLoadingAnimation();
+      if (this.uiManager.elements.resultContent) {
+        this.uiManager.elements.resultContent.innerHTML = `
+          <div class="error">
+            <span>Processing failed: ${error.message}</span>
+          </div>
+        `;
+      }
       console.error('❌ Text processing failed:', error);
-      this.uiManager.showError(`Processing failed: ${error.message}`);
       throw error;
     }
   }
