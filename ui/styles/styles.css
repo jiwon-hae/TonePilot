@@ -187,9 +187,8 @@ textarea {
   transform-origin: top;
 }
 
-/* Full-height container during loading */
+/* Container during loading - let JS control height, not CSS */
 .conversation-container-loading {
-  min-height: 100%;
   display: flex;
   flex-direction: column;
 }

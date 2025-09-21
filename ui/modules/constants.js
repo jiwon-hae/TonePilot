@@ -33,7 +33,7 @@ const TONEPILOT_CONSTANTS = {
       'websiteName', 'websiteUrl', 'selectedTextDisplay', 'selectedTextContent',
       'textInputWrapper', 'mediaGrid',
       'mediaCount', 'selectMediaBtn', 'selectedMediaDisplay', 'selectedMediaGrid',
-      'settingsBtn', 'settingsPopup', 'closeSettingsBtn', 'saveSettingsBtn',
+      'clearBtn', 'settingsBtn', 'settingsPopup', 'closeSettingsBtn', 'saveSettingsBtn',
       'maxCharactersInput', 'formalityTogglePopup', 'cropBtn', 'submitBtn',
       'mediaBtn', 'mediaPopup', 'closeMediaBtn'
     ],
