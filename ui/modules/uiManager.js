@@ -524,13 +524,18 @@ class TonePilotUIManager {
   showResults(results, conversationContainer) {
     console.log('🎯 Following user specification - Step 4: Replace loading with generated text');
 
-    // CRITICAL: Lock the scroll position during content changes
+    // DISABLE SCROLLING completely during content changes to prevent any movement
     const mainContent = document.querySelector('.main-content');
     const scrollTopBeforeLoad = mainContent ? mainContent.scrollTop : 0;
 
-    console.log('📍 BEFORE content load - locking scroll position:', {
+    if (mainContent) {
+      mainContent.style.overflow = 'hidden';
+      console.log('🔒 Disabled scrolling during content generation to prevent flickering');
+    }
+
+    console.log('📍 BEFORE content load - scroll disabled:', {
       scrollTop: scrollTopBeforeLoad,
-      strategy: 'Maintain exact scroll position during content expansion'
+      strategy: 'Disable scrolling completely during content changes'
     });
 
     // Stop the loading animation
@@ -583,9 +588,6 @@ class TonePilotUIManager {
 
     // Update the result content in the specific container
     if (conversationContainer && conversationContainer.resultContent) {
-      // Lock scroll position before content changes
-      if (mainContent) mainContent.scrollTop = scrollTopBeforeLoad;
-
       conversationContainer.resultContent.textContent = results.primary;
       conversationContainer.resultContent.style.display = 'block';
       // Use natural content flow - no flex, no fixed heights
@@ -595,9 +597,6 @@ class TonePilotUIManager {
       // Ensure content grows downward from the tabs, not upward
       conversationContainer.resultContent.style.position = 'relative';
       conversationContainer.resultContent.style.top = '0';
-
-      // Force scroll position immediately after content insertion
-      if (mainContent) mainContent.scrollTop = scrollTopBeforeLoad;
     } else {
       console.warn('showResults called with invalid conversationContainer');
     }
@@ -607,8 +606,6 @@ class TonePilotUIManager {
       const resultActions = conversationContainer.resultSection.querySelector('.result-actions');
       if (resultActions) {
         resultActions.style.display = 'flex';
-        // Force scroll position after showing actions
-        if (mainContent) mainContent.scrollTop = scrollTopBeforeLoad;
       } else {
         console.warn('⚠️ resultActions not found');
       }
@@ -616,52 +613,24 @@ class TonePilotUIManager {
       console.warn('⚠️ resultSection not found in conversationContainer:', conversationContainer);
     }
 
-    // KEEP SCROLL EXACTLY WHERE IT WAS - no movement after content generation
-    // Content grows downward, scroll stays at query text level
-    if (mainContent) {
-      mainContent.scrollTop = scrollTopBeforeLoad;
-      console.log('📍 Maintaining scroll position at query text level:', {
-        maintainedScrollTop: scrollTopBeforeLoad,
-        currentScrollTop: mainContent.scrollTop,
-        strategy: 'Content grows downward, scroll stays at query level'
-      });
-    }
-
     // Adjust filler after content generation: filler + container = main-content height
-    // But preserve scroll position during filler changes
-    const scrollBeforeFiller = mainContent ? mainContent.scrollTop : 0;
     this.adjustFillerAfterContentGeneration(conversationContainer.container);
 
-    // Ensure filler adjustment didn't move scroll position
-    if (mainContent && mainContent.scrollTop !== scrollBeforeFiller) {
-      mainContent.scrollTop = scrollBeforeFiller;
-      console.log('📐 Corrected scroll position after filler adjustment:', {
-        targetScroll: scrollBeforeFiller,
-        actualScroll: mainContent.scrollTop
-      });
-    }
+    // RE-ENABLE SCROLLING after all content changes are complete
+    // This happens after a short delay to ensure all layout is settled
+    setTimeout(() => {
+      if (mainContent) {
+        // Restore the original scroll position before re-enabling
+        mainContent.scrollTop = scrollTopBeforeLoad;
+        // Re-enable scrolling
+        mainContent.style.overflow = '';
 
-    console.log('📐 Adjusted filler after content generation while maintaining scroll position');
-
-    // Use multiple animation frames to ensure scroll stays locked during all layout changes
-    const enforceScrollPosition = (targetScroll, attempts = 0) => {
-      if (attempts >= 5) return; // Stop after 5 attempts
-
-      requestAnimationFrame(() => {
-        if (mainContent && mainContent.scrollTop !== targetScroll) {
-          mainContent.scrollTop = targetScroll;
-          console.log(`📍 Enforced scroll position (attempt ${attempts + 1}):`, {
-            target: targetScroll,
-            actual: mainContent.scrollTop
-          });
-        }
-        // Check again in next frame
-        enforceScrollPosition(targetScroll, attempts + 1);
-      });
-    };
-
-    // Start enforcing scroll position across multiple frames
-    enforceScrollPosition(scrollTopBeforeLoad);
+        console.log('🔓 Re-enabled scrolling after content generation complete:', {
+          restoredScrollTop: scrollTopBeforeLoad,
+          strategy: 'No flickering - scroll was disabled during all changes'
+        });
+      }
+    }, 50); // Small delay to ensure all DOM changes are complete
   }
 
   /**
