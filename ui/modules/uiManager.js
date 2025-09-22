@@ -404,7 +404,10 @@ class TonePilotUIManager {
       loadingArea.style.visibility = 'visible';
 
       // Don't set height on result-content during loading since it's hidden
-      resultContent.style.flex = 'none'; // Still override flex behavior
+      // Use natural flow instead of flex to prevent upward growth
+      resultContent.style.flex = 'none';
+      resultContent.style.height = 'auto';
+      resultContent.style.minHeight = 'auto';
 
       console.log('📐 Loading area sized naturally to prevent overscroll');
 
@@ -533,12 +536,19 @@ class TonePilotUIManager {
     // Stop the loading animation
     this.stopLoadingAnimation();
 
-    // Keep the latest conversation at full height, only update the class for styling
+    // Switch to content mode with natural block layout
     if (conversationContainer && conversationContainer.container) {
       conversationContainer.container.classList.remove('conversation-container-loading');
       conversationContainer.container.classList.add('conversation-container-content');
-      // Keep the result content height as-is for the latest conversation (maintain calculated height)
-      console.log('🎯 Latest conversation maintains calculated result content height after results loaded');
+
+      // Override flexbox layout to prevent upward growth
+      const resultSection = conversationContainer.container.querySelector('.result-section');
+      if (resultSection) {
+        resultSection.style.flex = 'none';
+        resultSection.style.display = 'block';
+      }
+
+      console.log('🎯 Switched to natural block layout to prevent query/tabs from moving upward');
     }
 
     // Hide loading area and show results
@@ -573,12 +583,21 @@ class TonePilotUIManager {
 
     // Update the result content in the specific container
     if (conversationContainer && conversationContainer.resultContent) {
+      // Lock scroll position before content changes
+      if (mainContent) mainContent.scrollTop = scrollTopBeforeLoad;
+
       conversationContainer.resultContent.textContent = results.primary;
       conversationContainer.resultContent.style.display = 'block';
-      // Reset height to auto so content wraps to its natural size
+      // Use natural content flow - no flex, no fixed heights
       conversationContainer.resultContent.style.height = 'auto';
       conversationContainer.resultContent.style.minHeight = 'auto';
-      conversationContainer.resultContent.style.flex = ''; // Reset flex behavior
+      conversationContainer.resultContent.style.flex = 'none';
+      // Ensure content grows downward from the tabs, not upward
+      conversationContainer.resultContent.style.position = 'relative';
+      conversationContainer.resultContent.style.top = '0';
+
+      // Force scroll position immediately after content insertion
+      if (mainContent) mainContent.scrollTop = scrollTopBeforeLoad;
     } else {
       console.warn('showResults called with invalid conversationContainer');
     }
@@ -588,6 +607,8 @@ class TonePilotUIManager {
       const resultActions = conversationContainer.resultSection.querySelector('.result-actions');
       if (resultActions) {
         resultActions.style.display = 'flex';
+        // Force scroll position after showing actions
+        if (mainContent) mainContent.scrollTop = scrollTopBeforeLoad;
       } else {
         console.warn('⚠️ resultActions not found');
       }
@@ -595,22 +616,52 @@ class TonePilotUIManager {
       console.warn('⚠️ resultSection not found in conversationContainer:', conversationContainer);
     }
 
-    // CRITICAL: Immediately restore the EXACT scroll position
-    // This prevents any scroll drift during content expansion
+    // KEEP SCROLL EXACTLY WHERE IT WAS - no movement after content generation
+    // Content grows downward, scroll stays at query text level
     if (mainContent) {
       mainContent.scrollTop = scrollTopBeforeLoad;
-
-      console.log('📍 IMMEDIATELY restored scroll position:', {
-        restoredScrollTop: scrollTopBeforeLoad,
+      console.log('📍 Maintaining scroll position at query text level:', {
+        maintainedScrollTop: scrollTopBeforeLoad,
         currentScrollTop: mainContent.scrollTop,
-        strategy: 'Lock scroll during content changes'
+        strategy: 'Content grows downward, scroll stays at query level'
       });
     }
 
     // Adjust filler after content generation: filler + container = main-content height
+    // But preserve scroll position during filler changes
+    const scrollBeforeFiller = mainContent ? mainContent.scrollTop : 0;
     this.adjustFillerAfterContentGeneration(conversationContainer.container);
 
-    console.log('📐 Adjusted filler after content generation to maintain proper positioning');
+    // Ensure filler adjustment didn't move scroll position
+    if (mainContent && mainContent.scrollTop !== scrollBeforeFiller) {
+      mainContent.scrollTop = scrollBeforeFiller;
+      console.log('📐 Corrected scroll position after filler adjustment:', {
+        targetScroll: scrollBeforeFiller,
+        actualScroll: mainContent.scrollTop
+      });
+    }
+
+    console.log('📐 Adjusted filler after content generation while maintaining scroll position');
+
+    // Use multiple animation frames to ensure scroll stays locked during all layout changes
+    const enforceScrollPosition = (targetScroll, attempts = 0) => {
+      if (attempts >= 5) return; // Stop after 5 attempts
+
+      requestAnimationFrame(() => {
+        if (mainContent && mainContent.scrollTop !== targetScroll) {
+          mainContent.scrollTop = targetScroll;
+          console.log(`📍 Enforced scroll position (attempt ${attempts + 1}):`, {
+            target: targetScroll,
+            actual: mainContent.scrollTop
+          });
+        }
+        // Check again in next frame
+        enforceScrollPosition(targetScroll, attempts + 1);
+      });
+    };
+
+    // Start enforcing scroll position across multiple frames
+    enforceScrollPosition(scrollTopBeforeLoad);
   }
 
   /**
