@@ -185,6 +185,12 @@ textarea {
 .conversation-container {
   transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.3s ease;
   transform-origin: top;
+  margin-top: 24px;
+}
+
+/* First conversation container should have the same 24px top margin as others for consistency */
+.conversation-container:first-child {
+  margin-top: 24px;
 }
 
 /* Container during loading - let JS control height, not CSS */
@@ -280,7 +286,7 @@ textarea {
   margin-bottom: 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  /* gap: 12px; */
 }
 
 .input-container {

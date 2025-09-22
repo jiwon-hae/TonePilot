@@ -251,6 +251,12 @@ class TonePilotUIManager {
       this.elements.queryDisplay.style.display = 'none';
     }
 
+    // Remove margin-bottom from input-section to prevent double spacing above first conversation
+    const inputSection = document.querySelector('.input-section');
+    if (inputSection) {
+      inputSection.style.marginBottom = '0';
+    }
+
     // Resize all existing conversations to content size before creating new one
     this.resizePreviousConversationsToContent();
 
@@ -391,7 +397,7 @@ class TonePilotUIManager {
       const tabsStyle = window.getComputedStyle(tabsElement);
       const tabsMargins = parseFloat(tabsStyle.marginTop) + parseFloat(tabsStyle.marginBottom);
 
-      // Container margins
+      // Container margins (now consistently 24px top for all containers)
       const containerStyle = window.getComputedStyle(containerDiv);
       const containerMargins = parseFloat(containerStyle.marginTop) + parseFloat(containerStyle.marginBottom);
 
@@ -652,24 +658,29 @@ class TonePilotUIManager {
     const mainContentPadding = parseFloat(mainContentStyle.paddingTop) + parseFloat(mainContentStyle.paddingBottom);
     const mainContentHeight = mainContent.clientHeight - mainContentPadding;
 
-    // Get new container height after content generation
+    // Get new container height after content generation including margins
     const newContainerHeight = containerDiv.offsetHeight;
+    const containerStyle = window.getComputedStyle(containerDiv);
+    const containerMargins = parseFloat(containerStyle.marginTop) + parseFloat(containerStyle.marginBottom);
+    const totalContainerHeight = newContainerHeight + containerMargins;
 
-    // Apply the logic: if container >= main-content height, filler = 0, else filler = main-content - container
+    // Apply the logic: if (container + margins) >= main-content height, filler = 0, else filler = main-content - (container + margins)
     let fillerHeight;
-    if (newContainerHeight >= mainContentHeight) {
+    if (totalContainerHeight >= mainContentHeight) {
       fillerHeight = 0;
     } else {
-      fillerHeight = mainContentHeight - newContainerHeight;
+      fillerHeight = mainContentHeight - totalContainerHeight;
     }
 
     console.log('📐 Filler adjustment after content generation:', {
       mainContentHeight,
       newContainerHeight,
+      containerMargins,
+      totalContainerHeight,
       fillerHeight,
-      logic: newContainerHeight >= mainContentHeight ?
-        'Container >= main-content height → filler = 0' :
-        'Container < main-content height → filler = main-content - container'
+      logic: totalContainerHeight >= mainContentHeight ?
+        'Container + margins >= main-content height → filler = 0' :
+        'Container + margins < main-content height → filler = main-content - (container + margins)'
     });
 
     // Update filler height
@@ -911,17 +922,22 @@ class TonePilotUIManager {
       const mainContentPadding = parseFloat(mainContentStyle.paddingTop) + parseFloat(mainContentStyle.paddingBottom);
       const availableHeight = mainContent.clientHeight - mainContentPadding;
 
-      // Get new item height
+      // Get new item height including its margins (24px top margin)
       const newItemHeight = newContainer.offsetHeight;
+      const containerStyle = window.getComputedStyle(newContainer);
+      const containerMargins = parseFloat(containerStyle.marginTop) + parseFloat(containerStyle.marginBottom);
+      const totalNewItemHeight = newItemHeight + containerMargins;
 
-      // Calculate filler: new item + filler = main-content height
-      const fillerHeight = Math.max(0, availableHeight - newItemHeight);
+      // Calculate filler: (new item + margins) + filler = main-content height
+      const fillerHeight = Math.max(0, availableHeight - totalNewItemHeight);
 
       console.log('📦 Non-empty panel filler calculation:', {
         availableHeight,
         newItemHeight,
+        containerMargins,
+        totalNewItemHeight,
         fillerHeight,
-        formula: 'filler = available height - new item height'
+        formula: 'filler = available height - (new item height + margins)'
       });
 
       if (fillerHeight > 0) {
