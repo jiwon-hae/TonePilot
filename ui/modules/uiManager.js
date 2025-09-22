@@ -521,6 +521,15 @@ class TonePilotUIManager {
   showResults(results, conversationContainer) {
     console.log('🎯 Following user specification - Step 4: Replace loading with generated text');
 
+    // CRITICAL: Lock the scroll position during content changes
+    const mainContent = document.querySelector('.main-content');
+    const scrollTopBeforeLoad = mainContent ? mainContent.scrollTop : 0;
+
+    console.log('📍 BEFORE content load - locking scroll position:', {
+      scrollTop: scrollTopBeforeLoad,
+      strategy: 'Maintain exact scroll position during content expansion'
+    });
+
     // Stop the loading animation
     this.stopLoadingAnimation();
 
@@ -586,8 +595,20 @@ class TonePilotUIManager {
       console.warn('⚠️ resultSection not found in conversationContainer:', conversationContainer);
     }
 
-    // Adjust filler height after content is loaded
-    this.adjustFillerAfterLoading(conversationContainer.container);
+    // CRITICAL: Immediately restore the EXACT scroll position
+    // This prevents any scroll drift during content expansion
+    if (mainContent) {
+      mainContent.scrollTop = scrollTopBeforeLoad;
+
+      console.log('📍 IMMEDIATELY restored scroll position:', {
+        restoredScrollTop: scrollTopBeforeLoad,
+        currentScrollTop: mainContent.scrollTop,
+        strategy: 'Lock scroll during content changes'
+      });
+    }
+
+    // Skip filler adjustment entirely for now to test if that's causing issues
+    // this.adjustFillerAfterLoading(conversationContainer.container);
   }
 
   /**
@@ -839,11 +860,19 @@ class TonePilotUIManager {
         filler.style.background = 'transparent';
         filler.style.pointerEvents = 'none';
 
+        // Store initial loading state for later adjustment
+        filler.dataset.initialContainerHeight = newItemHeight;
+        filler.dataset.initialFillerHeight = fillerHeight;
+
         // Insert after the new container
         newContainer.insertAdjacentElement('afterend', filler);
 
         console.log('📦 Added filler for non-empty panel:', {
-          height: fillerHeight
+          height: fillerHeight,
+          storedData: {
+            initialContainerHeight: newItemHeight,
+            initialFillerHeight: fillerHeight
+          }
         });
       }
 
@@ -869,36 +898,54 @@ class TonePilotUIManager {
     }
 
     requestAnimationFrame(() => {
-      // Get updated measurements after content load
-      const mainContentStyle = window.getComputedStyle(mainContent);
-      const mainContentPadding = parseFloat(mainContentStyle.paddingTop) + parseFloat(mainContentStyle.paddingBottom);
-      const availableHeight = mainContent.clientHeight - mainContentPadding;
-      const newItemHeight = containerDiv.offsetHeight;
-
-      // Recalculate filler: new item + filler = main-content height
-      // If content is too long, set filler = 0
-      const newFillerHeight = Math.max(0, availableHeight - newItemHeight);
-
-      console.log('📦 Adjusting filler after content load:', {
-        availableHeight,
-        newItemHeight,
-        oldFillerHeight: existingFiller.offsetHeight,
-        newFillerHeight
-      });
-
-      // Update filler height
-      existingFiller.style.height = `${newFillerHeight}px`;
-      existingFiller.style.minHeight = `${newFillerHeight}px`;
-
-      console.log('📦 Filler adjusted:', {
-        height: newFillerHeight
-      });
-
-      // Ensure query stays at top after filler adjustment
-      // When filler shrinks, we need to scroll to maintain query position at top
       requestAnimationFrame(() => {
-        this.scrollToEnd();
-        console.log('📍 Re-scrolled to maintain query at top after filler adjustment');
+        // Get main-content height (available space)
+        const mainContentStyle = window.getComputedStyle(mainContent);
+        const mainContentPadding = parseFloat(mainContentStyle.paddingTop) + parseFloat(mainContentStyle.paddingBottom);
+        const availableHeight = mainContent.clientHeight - mainContentPadding;
+
+        // Get stored initial state from loading phase
+        const initialContainerHeight = parseInt(existingFiller.dataset.initialContainerHeight) || 0;
+        const initialFillerHeight = parseInt(existingFiller.dataset.initialFillerHeight) || 0;
+        const initialTotalHeight = initialContainerHeight + initialFillerHeight;
+
+        // Get current container height after content is loaded
+        const newContainerHeight = containerDiv.offsetHeight;
+        const containerGrowth = newContainerHeight - initialContainerHeight;
+
+        // MAINTAIN CONSTANT TOTAL HEIGHT: Reduce filler by exactly how much container grew
+        const newFillerHeight = Math.max(0, initialFillerHeight - containerGrowth);
+        const newTotalHeight = newContainerHeight + newFillerHeight;
+
+        console.log('📦 POST-LOADING: Maintaining constant total height:', {
+          phase: 'after content generation',
+          loadingState: {
+            initialContainerHeight,
+            initialFillerHeight,
+            initialTotalHeight
+          },
+          afterGeneration: {
+            newContainerHeight,
+            containerGrowth,
+            newFillerHeight,
+            newTotalHeight
+          },
+          verification: {
+            totalHeightChange: newTotalHeight - initialTotalHeight,
+            shouldBeZero: newTotalHeight - initialTotalHeight === 0
+          },
+          strategy: 'Maintain constant total height to prevent layout shift'
+        });
+
+        // Update filler height
+        existingFiller.style.height = `${newFillerHeight}px`;
+        existingFiller.style.minHeight = `${newFillerHeight}px`;
+
+        console.log('📦 POST-LOADING: Filler adjusted, no scroll needed:', {
+          newFillerHeight,
+          finalScrollTop: mainContent.scrollTop,
+          note: 'Scroll only happens during initial loading, not after content generation'
+        });
       });
     });
   }
