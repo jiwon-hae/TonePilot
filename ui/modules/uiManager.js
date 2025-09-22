@@ -304,7 +304,6 @@ class TonePilotUIManager {
     // Create main container (let it size naturally, we'll control the result content height)
     const containerDiv = document.createElement('div');
     containerDiv.className = 'conversation-container conversation-container-loading';
-    containerDiv.style.marginBottom = '24px';
 
     // Create query display
     const queryDisplay = document.createElement('div');
@@ -396,8 +395,8 @@ class TonePilotUIManager {
       const containerStyle = window.getComputedStyle(containerDiv);
       const containerMargins = parseFloat(containerStyle.marginTop) + parseFloat(containerStyle.marginBottom);
 
-      // During loading: Let loading area size naturally to fit text content
-      // Remove any explicit height - let content determine size
+      // During loading: Let loading area size naturally to fit loading text
+      // Natural sizing prevents overscroll during loading phase
       loadingArea.style.height = 'auto';
       loadingArea.style.minHeight = 'auto';
       // Ensure loading area is visible and properly styled
@@ -407,7 +406,7 @@ class TonePilotUIManager {
       // Don't set height on result-content during loading since it's hidden
       resultContent.style.flex = 'none'; // Still override flex behavior
 
-      console.log('📐 Loading area sized naturally to fit content');
+      console.log('📐 Loading area sized naturally to prevent overscroll');
 
       console.log('📐 Loading height calculation:', {
         mainContentHeight: mainContent.clientHeight,
@@ -431,7 +430,10 @@ class TonePilotUIManager {
     console.log('🎬 Starting loading animation in:', loadingArea);
     this.startLoadingInContainer(loadingArea);
 
-    // Filler removed for height calculation debugging
+    // Handle filler logic based on panel state
+    requestAnimationFrame(() => {
+      this.handleFillerForNewItem(containerDiv);
+    });
 
     return {
       container: containerDiv,
@@ -517,6 +519,8 @@ class TonePilotUIManager {
    * @param {Object} conversationContainer - The container to update with results
    */
   showResults(results, conversationContainer) {
+    console.log('🎯 Following user specification - Step 4: Replace loading with generated text');
+
     // Stop the loading animation
     this.stopLoadingAnimation();
 
@@ -582,7 +586,8 @@ class TonePilotUIManager {
       console.warn('⚠️ resultSection not found in conversationContainer:', conversationContainer);
     }
 
-    // Filler removed for height calculation debugging
+    // Adjust filler height after content is loaded
+    this.adjustFillerAfterLoading(conversationContainer.container);
   }
 
   /**
@@ -744,6 +749,154 @@ class TonePilotUIManager {
   }
 
   /**
+   * Calculate panel body height A = main-content height (already constrained by header/footer)
+   */
+  calculatePanelBodyHeight() {
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent) {
+      console.error('Main content not found for panel body height calculation');
+      return 0;
+    }
+
+    const A = mainContent.clientHeight;
+
+    console.log('📐 Panel body height calculation:', {
+      mainContentHeight: A,
+      panelBodyHeight_A: A,
+      note: 'Using main-content height directly (already constrained by flexbox)'
+    });
+
+    return A;
+  }
+
+  /**
+   * Handle filler logic for new item following exact user requirements
+   */
+  handleFillerForNewItem(newContainer) {
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent) return;
+
+    // Get all existing containers (before the new one)
+    const allContainers = mainContent.querySelectorAll('.conversation-container');
+    const isEmptyPanel = allContainers.length <= 1; // Only the new container
+
+    console.log('🎯 Panel state check:', {
+      totalContainers: allContainers.length,
+      isEmptyPanel: isEmptyPanel
+    });
+
+    if (isEmptyPanel) {
+      // A: When panel is empty - no filler needed, natural behavior
+      console.log('📦 Empty panel: No filler needed');
+      return;
+    } else {
+      // B: When panel is not empty - follow the filler rules
+      this.addFillerForNonEmptyPanel(newContainer);
+    }
+  }
+
+  /**
+   * B: Non-empty panel logic
+   * 1.1: Remove existing filler before adding new content
+   * 1: New item + filler = main-content height
+   */
+  addFillerForNonEmptyPanel(newContainer) {
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent) return;
+
+    // 1.1: Remove existing filler before adding new content
+    const existingFiller = mainContent.querySelector('.conversation-filler');
+    if (existingFiller) {
+      existingFiller.remove();
+      console.log('📦 Removed existing filler');
+    }
+
+    requestAnimationFrame(() => {
+      // Get main-content height (available space)
+      const mainContentStyle = window.getComputedStyle(mainContent);
+      const mainContentPadding = parseFloat(mainContentStyle.paddingTop) + parseFloat(mainContentStyle.paddingBottom);
+      const availableHeight = mainContent.clientHeight - mainContentPadding;
+
+      // Get new item height
+      const newItemHeight = newContainer.offsetHeight;
+
+      // Calculate filler: new item + filler = main-content height
+      const fillerHeight = Math.max(0, availableHeight - newItemHeight);
+
+      console.log('📦 Non-empty panel filler calculation:', {
+        availableHeight,
+        newItemHeight,
+        fillerHeight,
+        formula: 'filler = available height - new item height'
+      });
+
+      if (fillerHeight > 0) {
+        // Create and add filler after new container
+        const filler = document.createElement('div');
+        filler.className = 'conversation-filler';
+        filler.style.height = `${fillerHeight}px`;
+        filler.style.minHeight = `${fillerHeight}px`;
+        filler.style.background = 'transparent';
+        filler.style.pointerEvents = 'none';
+
+        // Insert after the new container
+        newContainer.insertAdjacentElement('afterend', filler);
+
+        console.log('📦 Added filler for non-empty panel:', {
+          height: fillerHeight
+        });
+      }
+
+      // Scroll to show new content (previous items scroll out of view)
+      this.scrollToEnd();
+    });
+  }
+
+  /**
+   * Adjust filler after content is loaded (called from showResults)
+   */
+  adjustFillerAfterLoading(containerDiv) {
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent) return;
+
+    // Check if this is the last container and if there's a filler
+    const lastContainer = mainContent.querySelector('.conversation-container:last-child');
+    const existingFiller = mainContent.querySelector('.conversation-filler');
+
+    if (lastContainer !== containerDiv || !existingFiller) {
+      // Not the last container or no filler to adjust
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      // Get updated measurements after content load
+      const mainContentStyle = window.getComputedStyle(mainContent);
+      const mainContentPadding = parseFloat(mainContentStyle.paddingTop) + parseFloat(mainContentStyle.paddingBottom);
+      const availableHeight = mainContent.clientHeight - mainContentPadding;
+      const newItemHeight = containerDiv.offsetHeight;
+
+      // Recalculate filler: new item + filler = main-content height
+      // If content is too long, set filler = 0
+      const newFillerHeight = Math.max(0, availableHeight - newItemHeight);
+
+      console.log('📦 Adjusting filler after content load:', {
+        availableHeight,
+        newItemHeight,
+        oldFillerHeight: existingFiller.offsetHeight,
+        newFillerHeight
+      });
+
+      // Update filler height
+      existingFiller.style.height = `${newFillerHeight}px`;
+      existingFiller.style.minHeight = `${newFillerHeight}px`;
+
+      console.log('📦 Filler adjusted:', {
+        height: newFillerHeight
+      });
+    });
+  }
+
+  /**
    * Legacy method for backward compatibility
    * @deprecated Use addLoadingFiller() or addPostLoadingFiller() instead
    */
@@ -815,26 +968,52 @@ class TonePilotUIManager {
   }
 
   /**
+   * Scroll to the end of the content
+   * Used with modulo filler approach to position new container at viewport top
+   */
+  scrollToEnd() {
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent) return;
+
+    // Wait for filler to be added and layout to settle
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const maxScroll = mainContent.scrollHeight - mainContent.clientHeight;
+
+        console.log('📍 Scrolling to end:', {
+          scrollHeight: mainContent.scrollHeight,
+          clientHeight: mainContent.clientHeight,
+          maxScroll: maxScroll,
+          currentScroll: mainContent.scrollTop
+        });
+
+        mainContent.scrollTo({
+          top: maxScroll,
+          behavior: 'smooth'
+        });
+      });
+    });
+  }
+
+  /**
    * Setup re-alignment for images and dynamic content
    */
   setupContentReAlignment(newEl) {
     if (!newEl) return;
 
-    // Handle image load events for re-alignment
+    // Handle image load events - NO scrolling after initial load
     const images = newEl.querySelectorAll('img');
     images.forEach(img => {
       if (!img.complete) {
         img.addEventListener('load', () => {
-          console.log('🖼️ Image loaded, re-aligning scroll position');
-          this.scrollNewIntoView(newEl);
+          console.log('🖼️ Image loaded - no re-scroll needed');
         }, { once: true });
       }
     });
 
-    // Use ResizeObserver for dynamic content changes
+    // Use ResizeObserver for dynamic content changes - NO scrolling
     const ro = new ResizeObserver(() => {
-      console.log('📐 Content size changed, re-aligning scroll position');
-      this.scrollNewIntoView(newEl);
+      console.log('📐 Content size changed - no re-scroll needed');
     });
     ro.observe(newEl);
 
@@ -867,10 +1046,12 @@ class TonePilotUIManager {
     // 2. Add entering animation to new container
     newEl.classList.add('entering');
 
-    // 3. Use precise scroll alignment to position new item's top at viewport top
-    this.scrollNewIntoView(newEl);
+    // Step 3.2: Scroll will happen after filler is added (moved to filler callback)
 
-    // 4. Set up re-alignment for images and dynamic content
+    // Step 3.3: Now ready for generation (handled by caller)
+    console.log('🎯 Following user specification - Step 3.3: Ready for await generation');
+
+    // Set up re-alignment for images and dynamic content (no scrolling)
     this.setupContentReAlignment(newEl);
 
     // 5. Clean up animation classes after transition
