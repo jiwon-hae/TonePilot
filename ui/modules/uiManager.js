@@ -607,8 +607,61 @@ class TonePilotUIManager {
       });
     }
 
-    // Skip filler adjustment entirely for now to test if that's causing issues
-    // this.adjustFillerAfterLoading(conversationContainer.container);
+    // Adjust filler after content generation: filler + container = main-content height
+    this.adjustFillerAfterContentGeneration(conversationContainer.container);
+
+    console.log('📐 Adjusted filler after content generation to maintain proper positioning');
+  }
+
+  /**
+   * Adjust filler after content generation to maintain proper positioning
+   * Logic: filler + container = main-content height (unless container is taller)
+   */
+  adjustFillerAfterContentGeneration(containerDiv) {
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent || !containerDiv) return;
+
+    const existingFiller = mainContent.querySelector('.conversation-filler');
+    if (!existingFiller) {
+      console.log('📐 No existing filler to adjust');
+      return;
+    }
+
+    // Get main-content available height
+    const mainContentStyle = window.getComputedStyle(mainContent);
+    const mainContentPadding = parseFloat(mainContentStyle.paddingTop) + parseFloat(mainContentStyle.paddingBottom);
+    const mainContentHeight = mainContent.clientHeight - mainContentPadding;
+
+    // Get new container height after content generation
+    const newContainerHeight = containerDiv.offsetHeight;
+
+    // Apply the logic: if container >= main-content height, filler = 0, else filler = main-content - container
+    let fillerHeight;
+    if (newContainerHeight >= mainContentHeight) {
+      fillerHeight = 0;
+    } else {
+      fillerHeight = mainContentHeight - newContainerHeight;
+    }
+
+    console.log('📐 Filler adjustment after content generation:', {
+      mainContentHeight,
+      newContainerHeight,
+      fillerHeight,
+      logic: newContainerHeight >= mainContentHeight ?
+        'Container >= main-content height → filler = 0' :
+        'Container < main-content height → filler = main-content - container'
+    });
+
+    // Update filler height
+    existingFiller.style.height = `${fillerHeight}px`;
+    existingFiller.style.minHeight = `${fillerHeight}px`;
+
+    // If filler height is 0, we could hide it but keep it for consistency
+    if (fillerHeight === 0) {
+      existingFiller.style.display = 'none';
+    } else {
+      existingFiller.style.display = 'block';
+    }
   }
 
   /**
