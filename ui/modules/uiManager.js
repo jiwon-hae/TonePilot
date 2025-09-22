@@ -893,6 +893,13 @@ class TonePilotUIManager {
       console.log('📦 Filler adjusted:', {
         height: newFillerHeight
       });
+
+      // Ensure query stays at top after filler adjustment
+      // When filler shrinks, we need to scroll to maintain query position at top
+      requestAnimationFrame(() => {
+        this.scrollToEnd();
+        console.log('📍 Re-scrolled to maintain query at top after filler adjustment');
+      });
     });
   }
 
