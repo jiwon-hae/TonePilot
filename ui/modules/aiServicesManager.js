@@ -14,6 +14,7 @@ class TonePilotAIServicesManager {
     this.rewriterService = null;
     this.summarizerService = null;
     this.promptService = null;
+    this.translationService = null;
   }
 
   /**
@@ -28,13 +29,15 @@ class TonePilotAIServicesManager {
       this.rewriterService = new window.RewriterService();
       this.summarizerService = new window.SummarizerService();
       this.promptService = new window.PromptService();
+      this.translationService = new window.TranslationService();
 
       // Debug: Check if services were created successfully
       console.log('Service initialization status:', {
         writerService: !!this.writerService,
         rewriterService: !!this.rewriterService,
         summarizerService: !!this.summarizerService,
-        promptService: !!this.promptService
+        promptService: !!this.promptService,
+        translationService: !!this.translationService
       });
 
       // Check availability for each service individually with detailed error reporting
@@ -82,13 +85,24 @@ class TonePilotAIServicesManager {
         serviceChecks.push({ service: 'writer', error: error.message });
       }
 
+      try {
+        await this.translationService.checkTranslatorAvailability();
+        await this.translationService.checkDetectorAvailability();
+        console.log('✅ Translation service availability check completed');
+      } catch (error) {
+        console.error('❌ Translation service availability check failed:', error);
+        serviceChecks.push({ service: 'translation', error: error.message });
+      }
+
       // Log detailed service availability status
       const serviceStatus = {
         proofreader: this.proofreaderService.isAvailable,
         writer: this.writerService.isAvailable,
         rewriter: this.rewriterService.isAvailable,
         summarizer: this.summarizerService.isAvailable,
-        prompt: this.promptService.isAvailable
+        prompt: this.promptService.isAvailable,
+        translator: this.translationService.isTranslatorAvailable,
+        languageDetector: this.translationService.isDetectorAvailable
       };
 
       console.log('📊 Service availability status:', serviceStatus);
@@ -131,15 +145,25 @@ class TonePilotAIServicesManager {
     try {
       this.uiManager.hideError();
 
-      // Route the input to determine intent
-      const routing = await this.semanticRouter.route(inputText);
-      console.log('🎯 Routing result:', routing);
+      // Check if translate mode is active
+      const translateMode = this.stateManager.getTranslateMode();
+      const targetLanguage = this.stateManager.getTargetLanguage();
 
       // Get text to process (either selection or input)
       const textToProcess = selectionData?.text || inputText;
       if (!textToProcess?.trim()) {
         throw new Error('No text to process');
       }
+
+      // If translate mode is active, handle translation
+      if (translateMode) {
+        console.log('🌐 Translate mode active, target language:', targetLanguage);
+        return await this.handleTranslation(textToProcess, targetLanguage);
+      }
+
+      // Route the input to determine intent
+      const routing = await this.semanticRouter.route(inputText);
+      console.log('🎯 Routing result:', routing);
 
       // Process based on intent
       let result;
@@ -459,6 +483,110 @@ class TonePilotAIServicesManager {
         throw new Error(`Both writer and language model failed: ${error.message}; ${fallbackError.message}`);
       }
     }
+  }
+
+  /**
+   * Handle translation request
+   * @param {string} text - Text to translate
+   * @param {string} targetLanguage - Target language code
+   * @returns {Object} Translation results
+   */
+  async handleTranslation(text, targetLanguage) {
+    console.log('🌐 Translating text...');
+    console.log('Text:', text);
+    console.log('Target language:', targetLanguage);
+
+    if (!this.translationService.isTranslatorAvailable) {
+      console.warn('⚠️ Translation service not available, using language model fallback');
+      // Fallback to language model
+      try {
+        const promptService = new window.PromptService();
+        const prompt = `Translate the following text to ${this.getLanguageName(targetLanguage)}:\n\n"${text}"`;
+        const result = await promptService.send(prompt);
+        return {
+          primary: result,
+          original: text,
+          type: 'translate',
+          service: 'languageModel',
+          targetLanguage: targetLanguage
+        };
+      } catch (error) {
+        throw new Error(`Language model translation fallback failed: ${error.message}`);
+      }
+    }
+
+    try {
+      const result = await this.translationService.translate(text, {
+        targetLanguage: targetLanguage
+      });
+
+      return {
+        primary: result.translated,
+        original: result.original,
+        type: 'translate',
+        service: 'translator',
+        sourceLanguage: result.sourceLanguage,
+        targetLanguage: result.targetLanguage,
+        confidence: result.confidence,
+        metadata: result.metadata
+      };
+    } catch (error) {
+      console.error('❌ Translation service failed, using language model fallback:', error);
+      try {
+        const promptService = new window.PromptService();
+        const prompt = `Translate the following text to ${this.getLanguageName(targetLanguage)}:\n\n"${text}"`;
+        const result = await promptService.send(prompt);
+        return {
+          primary: result,
+          original: text,
+          type: 'translate',
+          service: 'languageModel',
+          targetLanguage: targetLanguage
+        };
+      } catch (fallbackError) {
+        throw new Error(`Both translation and language model failed: ${error.message}; ${fallbackError.message}`);
+      }
+    }
+  }
+
+  /**
+   * Get language name from language code
+   * @param {string} code - Language code (e.g., 'es', 'fr')
+   * @returns {string} Language name
+   */
+  getLanguageName(code) {
+    const languageMap = {
+      'en': 'English',
+      'es': 'Spanish',
+      'fr': 'French',
+      'de': 'German',
+      'it': 'Italian',
+      'pt': 'Portuguese',
+      'ru': 'Russian',
+      'ja': 'Japanese',
+      'ko': 'Korean',
+      'zh': 'Chinese (Simplified)',
+      'zh-TW': 'Chinese (Traditional)',
+      'ar': 'Arabic',
+      'hi': 'Hindi',
+      'nl': 'Dutch',
+      'pl': 'Polish',
+      'tr': 'Turkish',
+      'vi': 'Vietnamese',
+      'th': 'Thai',
+      'id': 'Indonesian',
+      'sv': 'Swedish',
+      'da': 'Danish',
+      'fi': 'Finnish',
+      'no': 'Norwegian',
+      'cs': 'Czech',
+      'hu': 'Hungarian',
+      'ro': 'Romanian',
+      'uk': 'Ukrainian',
+      'el': 'Greek',
+      'he': 'Hebrew'
+    };
+    return languageMap[code] || code;
   }
 
   /**
