@@ -53,7 +53,8 @@ class TonePilotUIManager {
         { element: 'selectMediaBtn', handler: () => this.handleSelectMedia() },
         { element: 'cropBtn', handler: () => this.handleCrop() },
         { element: 'submitBtn', handler: async () => await this.handleSubmit() },
-        { element: 'mediaBtn', handler: () => this.handleOpenMedia() }
+        { element: 'mediaBtn', handler: () => this.handleOpenMedia() },
+        { element: 'translateBtn', handler: () => this.handleToggleTranslate() }
       ];
 
       buttonEvents.forEach(({ element, handler }) => {

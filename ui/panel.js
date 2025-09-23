@@ -308,6 +308,7 @@ class TonePilotPanel {
     this.uiManager.handleDocumentClick = (e) => this.handleDocumentClick(e);
     this.uiManager.handleOpenMedia = () => this.handleOpenMedia();
     this.uiManager.handleCloseMedia = () => this.handleCloseMedia();
+    this.uiManager.handleToggleTranslate = () => this.handleToggleTranslate();
   }
 
   /**
@@ -414,6 +415,22 @@ class TonePilotPanel {
       console.error('❌ Replace failed:', error);
       this.uiManager.showError('Replace failed');
     }
+  }
+
+  /**
+   * Handle translate button toggle
+   */
+  handleToggleTranslate() {
+    const translateBtn = this.uiManager.elements.translateBtn;
+    const isActive = translateBtn.dataset.active === 'true';
+
+    // Toggle the active state
+    translateBtn.dataset.active = !isActive ? 'true' : 'false';
+
+    // Update state manager
+    this.stateManager.setTranslateMode(!isActive);
+
+    console.log(`🌐 Translate mode ${!isActive ? 'enabled' : 'disabled'}`);
   }
 
   /**

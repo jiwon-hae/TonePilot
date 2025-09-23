@@ -14,7 +14,9 @@ class TonePilotStateManager {
       selectedMediaItems: new Map(),
       selectedMediaArray: [],
       currentMaxCharacters: window.TONEPILOT_CONSTANTS.DEFAULTS.MAX_CHARACTERS,
-      currentFormalityToggle: window.TONEPILOT_CONSTANTS.DEFAULTS.FORMALITY_TOGGLE
+      currentFormalityToggle: window.TONEPILOT_CONSTANTS.DEFAULTS.FORMALITY_TOGGLE,
+      targetLanguage: window.TONEPILOT_CONSTANTS.DEFAULTS.TARGET_LANGUAGE,
+      translateMode: false
     };
 
     this.listeners = new Map();
@@ -146,6 +148,30 @@ class TonePilotStateManager {
       selectedMediaArray: this.state.selectedMediaArray,
       hasMedia: this.state.selectedMediaArray.length > 0
     };
+  }
+
+  /**
+   * Set translate mode
+   * @param {boolean} enabled - Translate mode enabled
+   */
+  setTranslateMode(enabled) {
+    this.setState('translateMode', enabled);
+  }
+
+  /**
+   * Get translate mode state
+   * @returns {boolean} Translate mode enabled
+   */
+  getTranslateMode() {
+    return this.state.translateMode;
+  }
+
+  /**
+   * Get target language
+   * @returns {string} Target language code
+   */
+  getTargetLanguage() {
+    return this.state.targetLanguage || 'en';
   }
 }
 

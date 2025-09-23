@@ -103,12 +103,12 @@ textarea {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
 }
 
 .header-btn {
-  width: 20px;
-  height: 20px;
+  width: 25px;
+  height: 25px;
   background: none;
   border: none;
   color: var(--text-muted);
@@ -123,6 +123,15 @@ textarea {
 .header-btn:hover {
   background: var(--hover-bg);
   color: var(--text-primary);
+}
+
+.header-btn.toggle-btn[data-active="true"] {
+  background: green;
+  color: white;
+}
+
+.header-btn.toggle-btn[data-active="true"]:hover {
+  background: green;
 }
 
 /* === STATUS BADGE === */

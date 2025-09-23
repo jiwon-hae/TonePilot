@@ -7,6 +7,7 @@ const TONEPILOT_CONSTANTS = {
   DEFAULTS: {
     MAX_CHARACTERS: 300,
     FORMALITY_TOGGLE: false,
+    TARGET_LANGUAGE: 'en',
     ROUTER_TIMEOUT: 3000,
     INITIALIZATION_TIMEOUT: 100
   },
@@ -33,8 +34,8 @@ const TONEPILOT_CONSTANTS = {
       'websiteName', 'websiteUrl', 'selectedTextDisplay', 'selectedTextContent',
       'textInputWrapper', 'mediaGrid',
       'mediaCount', 'selectMediaBtn', 'selectedMediaDisplay', 'selectedMediaGrid',
-      'clearBtn', 'settingsBtn', 'settingsPopup', 'closeSettingsBtn', 'saveSettingsBtn',
-      'maxCharactersInput', 'formalityTogglePopup', 'cropBtn', 'submitBtn',
+      'clearBtn', 'translateBtn', 'settingsBtn', 'settingsPopup', 'closeSettingsBtn', 'saveSettingsBtn',
+      'maxCharactersInput', 'formalityTogglePopup', 'targetLanguageSelect', 'cropBtn', 'submitBtn',
       'mediaBtn', 'mediaPopup', 'closeMediaBtn'
     ],
     SELECTORS: {

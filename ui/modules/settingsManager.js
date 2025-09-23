@@ -77,6 +77,7 @@ class TonePilotSettingsManager {
     return {
       maxCharacters: window.TONEPILOT_CONSTANTS.DEFAULTS.MAX_CHARACTERS,
       formalityToggle: window.TONEPILOT_CONSTANTS.DEFAULTS.FORMALITY_TOGGLE,
+      targetLanguage: window.TONEPILOT_CONSTANTS.DEFAULTS.TARGET_LANGUAGE,
       enableAutoSave: true,
       enableHistory: true,
       defaultTone: 'as-is',
@@ -93,6 +94,7 @@ class TonePilotSettingsManager {
     // Update state with current settings
     this.stateManager.setState('currentMaxCharacters', this.settings.maxCharacters);
     this.stateManager.setState('currentFormalityToggle', this.settings.formalityToggle);
+    this.stateManager.setState('targetLanguage', this.settings.targetLanguage);
 
     // Update UI elements
     this.updateSettingsUI();
@@ -110,6 +112,11 @@ class TonePilotSettingsManager {
     // Update formality toggle
     if (this.uiManager.elements.formalityTogglePopup) {
       this.uiManager.elements.formalityTogglePopup.checked = this.settings.formalityToggle;
+    }
+
+    // Update target language select
+    if (this.uiManager.elements.targetLanguageSelect) {
+      this.uiManager.elements.targetLanguageSelect.value = this.settings.targetLanguage || 'en';
     }
 
     console.log('🎛️ Settings UI updated');
@@ -194,6 +201,12 @@ class TonePilotSettingsManager {
     // Formality toggle
     if (this.uiManager.elements.formalityTogglePopup) {
       settings.formalityToggle = this.uiManager.elements.formalityTogglePopup.checked;
+    }
+
+    // Target language
+    if (this.uiManager.elements.targetLanguageSelect) {
+      settings.targetLanguage = this.uiManager.elements.targetLanguageSelect.value ||
+                                window.TONEPILOT_CONSTANTS.DEFAULTS.TARGET_LANGUAGE;
     }
 
     return settings;

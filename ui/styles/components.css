@@ -301,6 +301,36 @@
   background: var(--focus-bg);
 }
 
+.setting-select {
+  width: 100%;
+  max-width: 200px;
+  padding: 8px 12px;
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+
+.setting-select:hover {
+  border-color: var(--border-muted);
+  background: var(--hover-bg);
+}
+
+.setting-select:focus {
+  border-color: var(--focus-border);
+  background: var(--focus-bg);
+}
+
+.setting-select option {
+  background: var(--secondary-bg);
+  color: var(--text-primary);
+  padding: 8px;
+}
+
 .length-input::-webkit-outer-spin-button,
 .length-input::-webkit-inner-spin-button,
 .setting-input::-webkit-outer-spin-button,
