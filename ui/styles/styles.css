@@ -482,6 +482,11 @@ textarea {
   border-bottom: 1px solid rgba(179, 179, 179, 0.3);
 }
 
+/* Smaller copy button in result actions */
+.result-actions .btn {
+  padding: 5px 7px;
+}
+
 /* Remove bottom border from the last conversation item */
 .conversation-container:last-child .result-actions {
   border-bottom: none;
