@@ -45,7 +45,7 @@ class WriterService {
             tone: 'casual',
             format: 'plain-text',
             length: 'medium',
-            sharedContext: 'This is an email to acquaintances about an upcoming event.'
+            sharedContext: this.generatePlatformContext(config.platform)
         };
 
         const finalConfig = { ...defaultConfig, ...config };
@@ -148,6 +148,30 @@ class WriterService {
         } catch (error) {
             console.error('Writer failed:', error);
             throw new Error(`Writer failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Generate platform-specific shared context for Writer API
+     * @param {string} platform - Platform identifier ('linkedin', 'gmail', etc.)
+     * @returns {string} Platform-appropriate context string
+     */
+    generatePlatformContext(platform) {
+        switch (platform) {
+            case 'linkedin':
+                return 'You are writing professional content for LinkedIn. Consider the business networking context, professional tone expectations, and LinkedIn\'s audience of working professionals. Content should be engaging, industry-relevant, and appropriate for professional networking.';
+
+            case 'gmail':
+                return 'You are composing email content. Consider email etiquette, appropriate salutations and closings, clear subject matter, and professional communication standards.';
+
+            case 'twitter':
+                return 'You are creating content for Twitter/X. Keep in mind character limits, hashtag usage, engaging and concise language, and the fast-paced social media environment.';
+
+            case 'facebook':
+                return 'You are writing content for Facebook. Consider the social networking context, friend and family audience, casual yet respectful tone, and community engagement.';
+
+            default:
+                return 'You are writing general web content. Maintain clarity, appropriate tone for the context, and effective communication principles.';
         }
     }
 

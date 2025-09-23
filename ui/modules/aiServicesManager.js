@@ -154,7 +154,7 @@ class TonePilotAIServicesManager {
           result = await this.handleRewrite(textToProcess, inputText);
           break;
         case 'write':
-          result = await this.handleWrite(inputText, selectionData?.text);
+          result = await this.handleWrite(inputText, selectionData?.text, selectionData?.platform);
           break;
         default:
           result = await this.handleRewrite(textToProcess, inputText);
@@ -312,12 +312,14 @@ class TonePilotAIServicesManager {
    * Handle write request using Chrome's Writer API
    * @param {string} query - User query/prompt from textarea
    * @param {string} context - Selected text to use as context
+   * @param {string} platform - Platform identifier for context-aware writing
    * @returns {Object} Write results
    */
-  async handleWrite(query, context) {
+  async handleWrite(query, context, platform) {
     console.log('✏️ Writing text...');
     console.log('Query:', query);
     console.log('Context:', context);
+    console.log('Platform:', platform);
 
     // Determine tone from query
     const tone = this.extractToneFromQuery(query);
@@ -330,9 +332,15 @@ class TonePilotAIServicesManager {
         const promptService = new window.PromptService();
         let prompt = query;
 
+        // Add platform-specific context
+        if (platform) {
+          const platformContext = this.generatePlatformContext(platform);
+          prompt = `${platformContext}\n\n${query}`;
+        }
+
         // Add context if provided
         if (context && context.trim()) {
-          prompt = `${query}\n\nContext to consider: "${context}"`;
+          prompt = `${prompt}\n\nContext to consider: "${context}"`;
         }
 
         const result = await promptService.send(prompt);
@@ -354,7 +362,8 @@ class TonePilotAIServicesManager {
       await this.writerService.initialize({
         tone: tone,
         format: 'plain-text',
-        length: 'medium'
+        length: 'medium',
+        platform: platform
       });
 
       // Use Writer API
@@ -377,9 +386,15 @@ class TonePilotAIServicesManager {
         const promptService = new window.PromptService();
         let prompt = query;
 
+        // Add platform-specific context
+        if (platform) {
+          const platformContext = this.generatePlatformContext(platform);
+          prompt = `${platformContext}\n\n${query}`;
+        }
+
         // Add context if provided
         if (context && context.trim()) {
-          prompt = `${query}\n\nContext to consider: "${context}"`;
+          prompt = `${prompt}\n\nContext to consider: "${context}"`;
         }
 
         const result = await promptService.send(prompt);
@@ -429,6 +444,30 @@ class TonePilotAIServicesManager {
     }
 
     return 'neutral';
+  }
+
+  /**
+   * Generate platform-specific context for prompts
+   * @param {string} platform - Platform identifier ('linkedin', 'gmail', etc.)
+   * @returns {string} Platform-appropriate context string
+   */
+  generatePlatformContext(platform) {
+    switch (platform) {
+      case 'linkedin':
+        return 'You are writing professional content for LinkedIn. Consider the business networking context, professional tone expectations, and LinkedIn\'s audience of working professionals. Content should be engaging, industry-relevant, and appropriate for professional networking.';
+
+      case 'gmail':
+        return 'You are composing email content. Consider email etiquette, appropriate salutations and closings, clear subject matter, and professional communication standards.';
+
+      case 'twitter':
+        return 'You are creating content for Twitter/X. Keep in mind character limits, hashtag usage, engaging and concise language, and the fast-paced social media environment.';
+
+      case 'facebook':
+        return 'You are writing content for Facebook. Consider the social networking context, friend and family audience, casual yet respectful tone, and community engagement.';
+
+      default:
+        return 'You are writing general web content. Maintain clarity, appropriate tone for the context, and effective communication principles.';
+    }
   }
 
   /**

@@ -39,6 +39,14 @@ const CONTENT_CONSTANTS = {
   CSS_CLASSES: {
     SELECTION_OVERLAY: 'tonepilot-selection-overlay',
     SELECTION_BOX: 'tonepilot-selection-box'
+  },
+
+  // Platform detection
+  PLATFORMS: {
+    LINKEDIN: 'linkedin',
+    GMAIL: 'gmail',
+    TWITTER: 'twitter',
+    GENERIC: 'generic'
   }
 };
 
@@ -54,6 +62,214 @@ let _contentState = {
   selectionBox: null,
   startCoords: { x: 0, y: 0 }
 };
+
+/**
+ * Detect the current platform based on URL and page structure
+ * @returns {string} Platform identifier
+ */
+function detectPlatform() {
+  const hostname = window.location.hostname.toLowerCase();
+
+  if (hostname.includes('linkedin.com')) {
+    return CONTENT_CONSTANTS.PLATFORMS.LINKEDIN;
+  } else if (hostname.includes('gmail.com') || hostname.includes('mail.google.com')) {
+    return CONTENT_CONSTANTS.PLATFORMS.GMAIL;
+  } else if (hostname.includes('twitter.com') || hostname.includes('x.com')) {
+    return CONTENT_CONSTANTS.PLATFORMS.TWITTER;
+  }
+
+  return CONTENT_CONSTANTS.PLATFORMS.GENERIC;
+}
+
+/**
+ * Extract LinkedIn-specific context from the current selection
+ * @param {Selection} selection - The current text selection
+ * @returns {Object|null} LinkedIn context data or null if not found
+ */
+function extractLinkedInContext(selection) {
+  try {
+    if (!selection.rangeCount) return null;
+
+    const range = selection.getRangeAt(0);
+    const selectionContainer = range.commonAncestorContainer;
+
+    // Find the closest post container
+    let postElement = selectionContainer.nodeType === Node.TEXT_NODE ?
+      selectionContainer.parentElement : selectionContainer;
+
+    // Look for various LinkedIn post container patterns
+    const postContainer = postElement.closest([
+      '[data-urn*="activity"]',           // Feed posts
+      '[data-urn*="ugcPost"]',            // User generated content posts
+      '.feed-shared-update-v2',           // Alternative feed post selector
+      '.artdeco-card',                    // Card-based posts
+      '[data-id*="urn:li:activity"]'      // Direct activity URN
+    ].join(','));
+
+    if (!postContainer) {
+      console.log('LinkedIn: Could not find post container');
+      return null;
+    }
+
+    // Extract author information
+    const authorInfo = extractLinkedInAuthor(postContainer);
+
+    // Extract post metadata
+    const postInfo = extractLinkedInPostInfo(postContainer);
+
+    // Extract engagement data
+    const engagementInfo = extractLinkedInEngagement(postContainer);
+
+    return {
+      platform: 'linkedin',
+      author: authorInfo,
+      post: postInfo,
+      engagement: engagementInfo,
+      containerFound: true
+    };
+
+  } catch (error) {
+    console.error('Error extracting LinkedIn context:', error);
+    return null;
+  }
+}
+
+/**
+ * Extract author information from LinkedIn post container
+ * @param {Element} postContainer - The post container element
+ * @returns {Object} Author information
+ */
+function extractLinkedInAuthor(postContainer) {
+  try {
+    // Try multiple selectors for author information
+    const authorSelectors = [
+      '[data-control-name="actor"] .visually-hidden',  // Hidden accessible text
+      '[data-control-name="actor"] span[aria-hidden="true"]', // Visible author name
+      '.feed-shared-actor__name',                      // Alternative author selector
+      '.update-components-actor__name',                // Another author pattern
+      '.feed-shared-actor .visually-hidden'           // Hidden author text
+    ];
+
+    const titleSelectors = [
+      '.feed-shared-actor__description',               // Job title/description
+      '.update-components-actor__description',         // Alternative title
+      '.feed-shared-actor__sub-description'           // Sub-description
+    ];
+
+    let authorName = null;
+    let authorTitle = null;
+    let authorUrl = null;
+
+    // Extract author name
+    for (const selector of authorSelectors) {
+      const element = postContainer.querySelector(selector);
+      if (element && element.textContent.trim()) {
+        authorName = element.textContent.trim();
+        break;
+      }
+    }
+
+    // Extract author title/description
+    for (const selector of titleSelectors) {
+      const element = postContainer.querySelector(selector);
+      if (element && element.textContent.trim()) {
+        authorTitle = element.textContent.trim();
+        break;
+      }
+    }
+
+    // Extract author profile URL
+    const authorLink = postContainer.querySelector('[data-control-name="actor"]');
+    if (authorLink && authorLink.href) {
+      authorUrl = authorLink.href;
+    }
+
+    return {
+      name: authorName,
+      title: authorTitle,
+      profileUrl: authorUrl
+    };
+
+  } catch (error) {
+    console.error('Error extracting LinkedIn author:', error);
+    return { name: null, title: null, profileUrl: null };
+  }
+}
+
+/**
+ * Extract post information from LinkedIn post container
+ * @param {Element} postContainer - The post container element
+ * @returns {Object} Post information
+ */
+function extractLinkedInPostInfo(postContainer) {
+  try {
+    // Extract post timestamp
+    const timestampElement = postContainer.querySelector('time, [data-control-name="feed_timestamp"] span');
+    const timestamp = timestampElement ? timestampElement.getAttribute('datetime') || timestampElement.textContent.trim() : null;
+
+    // Extract post type indicators
+    const postTypeIndicators = postContainer.querySelectorAll('.feed-shared-header__headline span');
+    const postType = Array.from(postTypeIndicators)
+      .map(el => el.textContent.trim())
+      .filter(text => text.length > 0)
+      .join(' ') || 'post';
+
+    // Check if it's a shared/reposted content
+    const isShared = !!postContainer.querySelector('[data-control-name="reshare"]');
+
+    return {
+      timestamp: timestamp,
+      type: postType,
+      isShared: isShared
+    };
+
+  } catch (error) {
+    console.error('Error extracting LinkedIn post info:', error);
+    return { timestamp: null, type: 'post', isShared: false };
+  }
+}
+
+/**
+ * Extract engagement information from LinkedIn post container
+ * @param {Element} postContainer - The post container element
+ * @returns {Object} Engagement information
+ */
+function extractLinkedInEngagement(postContainer) {
+  try {
+    // Extract like count
+    const likesElement = postContainer.querySelector('[data-control-name="reactions_count"] span');
+    const likesText = likesElement ? likesElement.textContent.trim() : '0';
+
+    // Extract comment count
+    const commentsElement = postContainer.querySelector('[data-control-name="comments"] span');
+    const commentsText = commentsElement ? commentsElement.textContent.trim() : '0';
+
+    // Extract share count (if visible)
+    const sharesElement = postContainer.querySelector('[data-control-name="share_via"] span');
+    const sharesText = sharesElement ? sharesElement.textContent.trim() : '0';
+
+    // Parse numbers (handle "1.2K" format)
+    const parseCount = (text) => {
+      if (!text || text === '0') return 0;
+      const match = text.match(/(\d+(?:\.\d+)?)\s*([KM])?/i);
+      if (!match) return 0;
+
+      const num = parseFloat(match[1]);
+      const multiplier = match[2] ? (match[2].toUpperCase() === 'K' ? 1000 : 1000000) : 1;
+      return Math.round(num * multiplier);
+    };
+
+    return {
+      likes: parseCount(likesText),
+      comments: parseCount(commentsText),
+      shares: parseCount(sharesText)
+    };
+
+  } catch (error) {
+    console.error('Error extracting LinkedIn engagement:', error);
+    return { likes: 0, comments: 0, shares: 0 };
+  }
+}
 
 /**
  * Extract selection data from the current page
@@ -78,15 +294,26 @@ function getSelectionData() {
     const selectionInfo = _analyzeSelection(selection, selectedText);
     const contextInfo = _getPageContext();
 
+    // Get platform-specific context
+    const platform = detectPlatform();
+    let platformContext = {};
+
+    if (platform === CONTENT_CONSTANTS.PLATFORMS.LINKEDIN) {
+      platformContext = extractLinkedInContext(selection);
+      console.log('🔗 LinkedIn context extracted:', platformContext);
+    }
+
     return {
       text: selectedText,
       sourceType: selectionInfo.sourceType,
       domain: window.location.hostname,
       url: window.location.href,
+      platform: platform,
       context: {
         ...selectionInfo.context,
         pageTitle: document.title,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        ...platformContext
       }
     };
   } catch (error) {
