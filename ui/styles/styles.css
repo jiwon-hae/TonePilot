@@ -343,9 +343,16 @@ textarea {
   align-items: center;
 }
 
-.left-actions,
+.left-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+
+}
 .right-actions {
   display: flex;
+  gap:6px;
   flex-direction: row;
   align-items: center;
   flex-wrap: nowrap;
