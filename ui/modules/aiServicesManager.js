@@ -8,10 +8,12 @@ class TonePilotAIServicesManager {
     this.stateManager = stateManager;
     this.uiManager = uiManager;
     this.aiSetupService = null;
+    this.writerService = null;
     this.semanticRouter = null;
     this.proofreaderService = null;
     this.rewriterService = null;
     this.summarizerService = null;
+    this.promptService = null;
   }
 
   /**
@@ -22,13 +24,23 @@ class TonePilotAIServicesManager {
       this.aiSetupService = new window.AISetupService();
       this.semanticRouter = new window.SemanticRouter();
       this.proofreaderService = new window.ProofreaderService();
+      this.writerService = new window.WriterService();
       this.rewriterService = new window.RewriterService();
       this.summarizerService = new window.SummarizerService();
+      this.promptService = new window.PromptService();
 
       // Check availability for each service individually with detailed error reporting
       console.log('🔍 Checking service availability...');
 
       const serviceChecks = [];
+
+      try {
+        await this.promptService.checkAvailability();
+        console.log('✅ PromptService service availability check completed');
+      } catch (error) {
+        console.error('❌ PromptService service availability check failed:', error);
+        serviceChecks.push({ service: 'promptService', error: error.message });
+      }
 
       try {
         await this.proofreaderService.checkAvailability();
@@ -54,11 +66,21 @@ class TonePilotAIServicesManager {
         serviceChecks.push({ service: 'summarizer', error: error.message });
       }
 
+      try {
+        await this.writerService.checkAvailability();
+        console.log('✅ Writer service availability check completed');
+      } catch (error) {
+        console.error('❌ Writer service availability check failed:', error);
+        serviceChecks.push({ service: 'writer', error: error.message });
+      }
+
       // Log detailed service availability status
       const serviceStatus = {
         proofreader: this.proofreaderService.isAvailable,
+        writer: this.writerService.isAvailable,
         rewriter: this.rewriterService.isAvailable,
-        summarizer: this.summarizerService.isAvailable
+        summarizer: this.summarizerService.isAvailable,
+        prompt: this.promptService.isAvailable
       };
 
       console.log('📊 Service availability status:', serviceStatus);
@@ -120,8 +142,12 @@ class TonePilotAIServicesManager {
         case 'summarize':
           result = await this.handleSummarize(textToProcess);
           break;
-        case 'revise':
-        case 'draft':
+        case 'rewrite':
+          result = await this.handleRewrite(textToProcess, inputText);
+          break;
+        case 'write':
+          result = await this.handleWrite(inputText, selectionData?.text);
+          break;
         default:
           result = await this.handleRewrite(textToProcess, inputText);
           break;
@@ -275,7 +301,95 @@ class TonePilotAIServicesManager {
   }
 
   /**
-   * Extract tone preference from instructions
+   * Handle write request using Chrome's Writer API
+   * @param {string} query - User query/prompt from textarea
+   * @param {string} context - Selected text to use as context
+   * @returns {Object} Write results
+   */
+  async handleWrite(query, context) {
+    console.log('✏️ Writing text...');
+    console.log('Query:', query);
+    console.log('Context:', context);
+
+    // Determine tone from query
+    const tone = this.extractToneFromQuery(query);
+
+    if (!this.writerService.isAvailable) {
+      console.warn('⚠️ Writer service not available, using language model fallback');
+      // Fallback to language model via PromptService
+      try {
+        const promptService = new window.PromptService();
+        let prompt = query;
+
+        // Add context if provided
+        if (context && context.trim()) {
+          prompt = `${query}\n\nContext to consider: "${context}"`;
+        }
+
+        const result = await promptService.send(prompt);
+        return {
+          primary: result,
+          original: query,
+          context: context || '',
+          type: 'write',
+          service: 'languageModel',
+          tone: tone
+        };
+      } catch (error) {
+        throw new Error(`Language model fallback failed: ${error.message}`);
+      }
+    }
+
+    try {
+      // Initialize writer service if needed
+      await this.writerService.initialize({
+        tone: tone,
+        format: 'plain-text',
+        length: 'medium'
+      });
+
+      // Use Writer API
+      const result = await this.writerService.write(query, context, {
+        context: context || undefined
+      });
+
+      return {
+        primary: result.output,
+        original: query,
+        context: context || '',
+        type: 'write',
+        service: 'writer',
+        tone: tone,
+        metadata: result.metadata
+      };
+    } catch (error) {
+      console.error('❌ Writer service failed, using language model fallback:', error);
+      try {
+        const promptService = new window.PromptService();
+        let prompt = query;
+
+        // Add context if provided
+        if (context && context.trim()) {
+          prompt = `${query}\n\nContext to consider: "${context}"`;
+        }
+
+        const result = await promptService.send(prompt);
+        return {
+          primary: result,
+          original: query,
+          context: context || '',
+          type: 'write',
+          service: 'languageModel',
+          tone: tone
+        };
+      } catch (fallbackError) {
+        throw new Error(`Both writer and language model failed: ${error.message}; ${fallbackError.message}`);
+      }
+    }
+  }
+
+  /**
+   * Extract tone preference from instructions (for rewriter)
    * @param {string} instructions - User instructions
    * @returns {string} Tone setting
    */
@@ -289,6 +403,23 @@ class TonePilotAIServicesManager {
     }
 
     return 'as-is';
+  }
+
+  /**
+   * Extract tone preference from query (for writer)
+   * @param {string} query - User query
+   * @returns {string} Tone setting for Writer API
+   */
+  extractToneFromQuery(query) {
+    const lower = query.toLowerCase();
+
+    if (lower.includes('formal') || lower.includes('professional') || lower.includes('business')) {
+      return 'formal';
+    } else if (lower.includes('casual') || lower.includes('friendly') || lower.includes('informal')) {
+      return 'casual';
+    }
+
+    return 'neutral';
   }
 
   /**
@@ -339,6 +470,7 @@ class TonePilotAIServicesManager {
   getServiceStatus() {
     return {
       aiSetupService: Boolean(this.aiSetupService),
+      writerService : Boolean(this.writerService),
       semanticRouter: Boolean(this.semanticRouter),
       proofreaderService: Boolean(this.proofreaderService),
       rewriterService: Boolean(this.rewriterService),

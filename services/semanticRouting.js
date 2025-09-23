@@ -12,8 +12,8 @@ class SemanticRouter {
     // Fast patterns for classification
     this.patterns = {
       proofread: /\b(proofread|grammar|spelling|typo|punctuation|correct|fix)\b/i,
-      revise: /\b(revise|rewrite|rephrase|improve|clarity|concise|tone|formal|casual|polish|enhance|refine)\b/i,
-      draft: /\b(draft|write|compose|create|email|cover\s*letter|blog|message|outreach|letter)\b/i,
+      rewrite: /\b(revise|rewrite|rephrase|improve|clarity|concise|tone|formal|casual|polish|enhance|refine)\b/i,
+      write: /\b(draft|write|compose|create|email|cover\s*letter|blog|message|outreach|letter)\b/i,
       summarize: /\b(summarize|summary|tldr|key\s*points|brief|overview|abstract|condensed?|digest)\b/i,
     };
   }
@@ -48,14 +48,14 @@ class SemanticRouter {
     switch (intent) {
       case "proofread":
         return { type: "proofread", text };
-      case "revise":
-        return { type: "revise", text, goal: null };
-      case "draft":
-        return { type: "draft", instructions: text };
+      case "rewrite":
+        return { type: "rewrite", text, goal: null };
+      case "write":
+        return { type: "write", instructions: text };
       case "summarize":
         return { type: "summarize", text, summaryType: "key-points", length: "medium" };
       default:
-        return { type: "other", text };
+        return { type: "prompt", text };
     }
   }
 }
