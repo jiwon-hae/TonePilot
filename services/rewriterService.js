@@ -50,7 +50,7 @@ class RewriterService {
       tone: 'as-is',
       format: 'as-is',
       length: 'as-is',
-      sharedContext: ''
+      sharedContext: this.generatePlatformContext(config.platform, config.context)
     };
 
     const finalConfig = { ...defaultConfig, ...config };
@@ -252,6 +252,50 @@ class RewriterService {
     config.sharedContext = sharedContext;
 
     return await this.initialize(config);
+  }
+
+  /**
+   * Generate platform-specific shared context for Rewriter API
+   * @param {string} platform - Platform identifier ('linkedin', 'gmail', etc.)
+   * @param {Object} context - Additional context from platform
+   * @returns {string} Platform-appropriate context string
+   */
+  generatePlatformContext(platform, context) {
+    let baseContext = '';
+
+    switch (platform) {
+      case 'linkedin':
+        baseContext = 'You are rewriting professional content for LinkedIn. Maintain business networking appropriateness, professional tone, and industry relevance. Content should be engaging for working professionals. ';
+        if (context?.author?.name) {
+          baseContext += `Original content is by ${context.author.name}`;
+          if (context.author.title) {
+            baseContext += `, ${context.author.title}`;
+          }
+          baseContext += '. ';
+        }
+        if (context?.engagement) {
+          baseContext += `This content has professional engagement (${context.engagement.likes || 0} likes, ${context.engagement.comments || 0} comments). `;
+        }
+        break;
+
+      case 'gmail':
+        baseContext = 'You are rewriting email content. Maintain appropriate email etiquette, professional communication standards, and clear messaging suitable for business correspondence. ';
+        break;
+
+      case 'twitter':
+        baseContext = 'You are rewriting content for Twitter/X. Consider character limits, social media engagement patterns, hashtag usage, and concise communication style. ';
+        break;
+
+      case 'facebook':
+        baseContext = 'You are rewriting content for Facebook. Maintain casual but respectful tone appropriate for social networking, community engagement, and personal connections. ';
+        break;
+
+      default:
+        baseContext = 'You are rewriting web content. Maintain clarity, appropriate tone for the context, and effective communication principles. ';
+        break;
+    }
+
+    return baseContext + 'Preserve the core message while improving clarity, engagement, and appropriateness for the platform.';
   }
 
   /**

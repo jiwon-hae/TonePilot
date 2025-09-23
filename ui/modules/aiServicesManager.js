@@ -148,16 +148,16 @@ class TonePilotAIServicesManager {
           result = await this.handleProofread(textToProcess);
           break;
         case 'summarize':
-          result = await this.handleSummarize(textToProcess);
+          result = await this.handleSummarize(textToProcess, selectionData?.platform, selectionData?.context);
           break;
         case 'rewrite':
-          result = await this.handleRewrite(textToProcess, inputText);
+          result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context);
           break;
         case 'write':
           result = await this.handleWrite(inputText, selectionData?.text, selectionData?.platform);
           break;
         default:
-          result = await this.handleRewrite(textToProcess, inputText);
+          result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context);
           break;
       }
 
@@ -215,18 +215,31 @@ class TonePilotAIServicesManager {
   /**
    * Handle summarization request
    * @param {string} text - Text to summarize
+   * @param {string} platform - Platform identifier for context-aware summarization
+   * @param {Object} context - Additional context from platform (author, engagement, etc.)
    * @returns {Object} Summary results
    */
-  async handleSummarize(text) {
+  async handleSummarize(text, platform, context) {
     console.log('📋 Summarizing text...');
+    console.log('Platform:', platform);
+    console.log('Context:', context);
 
     if (!this.summarizerService.isAvailable) {
       console.warn('⚠️ Summarizer service not available, using fallback');
-      // Fallback to language model if summarizer not available
-      return await this.handleRewrite(text, 'Please summarize this text with key points');
+      // Fallback to language model with platform context
+      const platformAwarePrompt = this.generateSummarizationPrompt(platform, context);
+      return await this.handleRewrite(text, platformAwarePrompt);
     }
 
     try {
+      // Initialize summarizer with platform context if needed
+      await this.summarizerService.initialize({
+        type: 'key-points',
+        length: 'medium',
+        platform: platform,
+        context: context
+      });
+
       const result = await this.summarizerService.summarize(text, {
         type: 'key-points',
         length: 'medium'
@@ -236,11 +249,14 @@ class TonePilotAIServicesManager {
         primary: result.summary,
         original: text,
         type: 'summarize',
-        service: 'summarizer'
+        service: 'summarizer',
+        platform: platform,
+        context: context
       };
     } catch (error) {
       console.error('❌ Summarizer service failed, using fallback:', error);
-      return await this.handleRewrite(text, 'Please summarize this text with key points');
+      const platformAwarePrompt = this.generateSummarizationPrompt(platform, context);
+      return await this.handleRewrite(text, platformAwarePrompt);
     }
   }
 
@@ -248,27 +264,40 @@ class TonePilotAIServicesManager {
    * Handle rewrite request
    * @param {string} text - Text to rewrite
    * @param {string} instructions - Rewrite instructions
+   * @param {string} platform - Platform identifier for context-aware rewriting
+   * @param {Object} context - Additional context from platform
    * @returns {Object} Rewrite results
    */
-  async handleRewrite(text, instructions) {
+  async handleRewrite(text, instructions, platform, context) {
     console.log('✏️ Rewriting text...');
+    console.log('Platform:', platform);
+    console.log('Context:', context);
 
     // Determine tone from instructions
     const tone = this.extractToneFromInstructions(instructions);
 
     if (!this.rewriterService.isAvailable) {
       console.warn('⚠️ Rewriter service not available, using language model fallback');
-      // Fallback to language model via PromptService
+      // Fallback to language model via PromptService with platform context
       try {
         const promptService = new window.PromptService();
-        const prompt = `${instructions}\n\nText to process: "${text}"`;
+        let prompt = instructions;
+
+        // Add platform-specific context
+        if (platform) {
+          const platformContext = this.generateRewritePrompt(instructions, platform, context);
+          prompt = platformContext;
+        }
+
+        prompt += `\n\nText to process: "${text}"`;
         const result = await promptService.send(prompt);
         return {
           primary: result,
           original: text,
           type: 'rewrite',
           service: 'languageModel',
-          tone: tone
+          tone: tone,
+          platform: platform
         };
       } catch (error) {
         throw new Error(`Language model fallback failed: ${error.message}`);
@@ -276,6 +305,15 @@ class TonePilotAIServicesManager {
     }
 
     try {
+      // Initialize rewriter with platform context if needed
+      await this.rewriterService.initialize({
+        tone: tone,
+        format: 'as-is',
+        length: 'as-is',
+        platform: platform,
+        context: context
+      });
+
       const result = await this.rewriterService.rewrite(text, {
         tone: tone,
         format: 'as-is',
@@ -287,20 +325,31 @@ class TonePilotAIServicesManager {
         original: result.original,
         type: 'rewrite',
         service: 'rewriter',
-        tone: tone
+        tone: tone,
+        platform: platform,
+        context: context
       };
     } catch (error) {
       console.error('❌ Rewriter service failed, using language model fallback:', error);
       try {
         const promptService = new window.PromptService();
-        const prompt = `${instructions}\n\nText to process: "${text}"`;
+        let prompt = instructions;
+
+        // Add platform-specific context
+        if (platform) {
+          const platformContext = this.generateRewritePrompt(instructions, platform, context);
+          prompt = platformContext;
+        }
+
+        prompt += `\n\nText to process: "${text}"`;
         const result = await promptService.send(prompt);
         return {
           primary: result,
           original: text,
           type: 'rewrite',
           service: 'languageModel',
-          tone: tone
+          tone: tone,
+          platform: platform
         };
       } catch (fallbackError) {
         throw new Error(`Both rewriter and language model failed: ${error.message}; ${fallbackError.message}`);
@@ -468,6 +517,62 @@ class TonePilotAIServicesManager {
       default:
         return 'You are writing general web content. Maintain clarity, appropriate tone for the context, and effective communication principles.';
     }
+  }
+
+  /**
+   * Generate platform-aware summarization prompt for fallback scenarios
+   * @param {string} platform - Platform identifier
+   * @param {Object} context - Additional context from platform
+   * @returns {string} Platform-appropriate summarization prompt
+   */
+  generateSummarizationPrompt(platform, context) {
+    let prompt = 'Please summarize this text with key points';
+
+    if (platform === 'linkedin' && context?.author) {
+      prompt = `Please summarize this LinkedIn post by ${context.author.name}${context.author.title ? ` (${context.author.title})` : ''}. Focus on business insights, professional networking value, and key takeaways for working professionals.`;
+      if (context.engagement) {
+        prompt += ` This post has ${context.engagement.likes || 0} likes and ${context.engagement.comments || 0} comments, indicating high engagement.`;
+      }
+    } else if (platform === 'gmail') {
+      prompt = 'Please summarize this email content. Focus on key action items, important decisions, deadlines, and main communication points that require attention or follow-up.';
+    } else if (platform === 'twitter') {
+      prompt = 'Please summarize this Twitter/X content. Focus on the main message, trending topics, viral elements, and key discussion points in a concise format.';
+    } else if (platform === 'facebook') {
+      prompt = 'Please summarize this Facebook content. Focus on personal updates, community discussions, event information, and social connections.';
+    } else if (platform) {
+      prompt = `Please summarize this ${platform} content with key points, focusing on the main ideas and actionable insights.`;
+    }
+
+    return prompt;
+  }
+
+  /**
+   * Generate platform-aware rewrite prompt for fallback scenarios
+   * @param {string} instructions - Original rewrite instructions
+   * @param {string} platform - Platform identifier
+   * @param {Object} context - Additional context from platform
+   * @returns {string} Platform-appropriate rewrite prompt
+   */
+  generateRewritePrompt(instructions, platform, context) {
+    let prompt = instructions;
+
+    if (platform === 'linkedin' && context?.author) {
+      prompt = `You are rewriting professional content for LinkedIn. The original content is by ${context.author.name}${context.author.title ? ` (${context.author.title})` : ''}. Maintain business networking appropriateness, professional tone, and industry relevance. `;
+      if (context.engagement) {
+        prompt += `This content has professional engagement (${context.engagement.likes || 0} likes, ${context.engagement.comments || 0} comments). `;
+      }
+      prompt += `Instructions: ${instructions}`;
+    } else if (platform === 'gmail') {
+      prompt = `You are rewriting email content. Maintain appropriate email etiquette, professional communication standards, and clear messaging suitable for business correspondence. Instructions: ${instructions}`;
+    } else if (platform === 'twitter') {
+      prompt = `You are rewriting content for Twitter/X. Consider character limits, social media engagement patterns, hashtag usage, and concise communication style. Instructions: ${instructions}`;
+    } else if (platform === 'facebook') {
+      prompt = `You are rewriting content for Facebook. Maintain casual but respectful tone appropriate for social networking, community engagement, and personal connections. Instructions: ${instructions}`;
+    } else if (platform) {
+      prompt = `You are rewriting ${platform} content. Maintain clarity, appropriate tone for the context, and effective communication principles. Instructions: ${instructions}`;
+    }
+
+    return prompt;
   }
 
   /**

@@ -50,7 +50,7 @@ class SummarizerService {
       type: 'key-points',
       format: 'markdown',
       length: 'medium',
-      sharedContext: ''
+      sharedContext: this.generatePlatformContext(config.platform, config.context)
     };
 
     const finalConfig = { ...defaultConfig, ...config };
@@ -220,6 +220,50 @@ class SummarizerService {
    */
   getOutputFormats() {
     return ['markdown', 'plain-text'];
+  }
+
+  /**
+   * Generate platform-specific shared context for Summarizer API
+   * @param {string} platform - Platform identifier ('linkedin', 'gmail', etc.)
+   * @param {Object} context - Additional context from platform
+   * @returns {string} Platform-appropriate context string
+   */
+  generatePlatformContext(platform, context) {
+    let baseContext = '';
+
+    switch (platform) {
+      case 'linkedin':
+        baseContext = 'You are summarizing professional content from LinkedIn. Focus on business insights, professional networking value, industry trends, and key takeaways relevant to working professionals. ';
+        if (context?.author?.name) {
+          baseContext += `This content is by ${context.author.name}`;
+          if (context.author.title) {
+            baseContext += `, ${context.author.title}`;
+          }
+          baseContext += '. ';
+        }
+        if (context?.engagement) {
+          baseContext += `This post has significant engagement (${context.engagement.likes || 0} likes, ${context.engagement.comments || 0} comments). `;
+        }
+        break;
+
+      case 'gmail':
+        baseContext = 'You are summarizing email content. Focus on key action items, important decisions, deadlines, and main communication points that require attention or follow-up. ';
+        break;
+
+      case 'twitter':
+        baseContext = 'You are summarizing social media content from Twitter/X. Focus on the main message, trending topics, viral elements, and key discussion points in a concise format. ';
+        break;
+
+      case 'facebook':
+        baseContext = 'You are summarizing social networking content from Facebook. Focus on personal updates, community discussions, event information, and social connections. ';
+        break;
+
+      default:
+        baseContext = 'You are summarizing web content. Focus on the main ideas, key facts, important conclusions, and actionable insights. ';
+        break;
+    }
+
+    return baseContext + 'Provide clear, well-structured summaries that capture the essential information.';
   }
 
   /**
