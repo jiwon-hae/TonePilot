@@ -348,7 +348,6 @@ textarea {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
   flex-wrap: nowrap;
 }
 
@@ -478,7 +477,6 @@ textarea {
 
 .result-actions {
   display: flex;
-  gap: 8px;
   border-bottom: 1px solid rgba(179, 179, 179, 0.3);
 }
 
