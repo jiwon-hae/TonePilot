@@ -29,6 +29,14 @@ class TonePilotAIServicesManager {
       this.summarizerService = new window.SummarizerService();
       this.promptService = new window.PromptService();
 
+      // Debug: Check if services were created successfully
+      console.log('Service initialization status:', {
+        writerService: !!this.writerService,
+        rewriterService: !!this.rewriterService,
+        summarizerService: !!this.summarizerService,
+        promptService: !!this.promptService
+      });
+
       // Check availability for each service individually with detailed error reporting
       console.log('🔍 Checking service availability...');
 
@@ -314,7 +322,8 @@ class TonePilotAIServicesManager {
     // Determine tone from query
     const tone = this.extractToneFromQuery(query);
 
-    if (!this.writerService.isAvailable) {
+    // Check if writer service exists and is available
+    if (!this.writerService || !this.writerService.isAvailable) {
       console.warn('⚠️ Writer service not available, using language model fallback');
       // Fallback to language model via PromptService
       try {
