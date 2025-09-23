@@ -331,7 +331,7 @@ class TonePilotUIManager {
       <div class="result-content" style="display: none;"></div>
       <div class="result-actions" style="display: none;">
         <button class="btn btn-secondary">
-          <img src="../icons/copy.png" alt="Copy" style="width:10px; height:10px;" />
+          <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
         </button>
       </div>
     `;
@@ -343,6 +343,14 @@ class TonePilotUIManager {
     // Assemble container
     containerDiv.appendChild(queryDisplay);
     containerDiv.appendChild(resultSection);
+
+    // Add copy button event listener for this specific container
+    const copyButton = resultSection.querySelector('.btn-secondary');
+    if (copyButton) {
+      copyButton.addEventListener('click', () => {
+        this.handleCopyFromContainer(containerDiv);
+      });
+    }
 
     // Append at the bottom of main content (newest conversations at bottom)
     const mainContent = document.querySelector('.main-content');
@@ -1335,6 +1343,91 @@ class TonePilotUIManager {
 
   // Event handlers (to be connected to main panel logic)
   handleCopy() { console.log('Copy clicked'); }
+
+  /**
+   * Handle copy button click from a specific conversation container
+   * @param {HTMLElement} containerDiv - The conversation container element
+   */
+  handleCopyFromContainer(containerDiv) {
+    try {
+      // Find the result content within this specific container
+      const resultContent = containerDiv.querySelector('.result-content');
+      if (!resultContent) {
+        console.warn('No result content found in container');
+        return;
+      }
+
+      // Get the text content
+      const textToCopy = resultContent.textContent || resultContent.innerText || '';
+
+      if (!textToCopy.trim()) {
+        console.warn('No content to copy');
+        return;
+      }
+
+      // Copy to clipboard using the Clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          console.log('✅ Content copied to clipboard successfully');
+          // Optional: Show brief visual feedback
+          this.showCopyFeedback(containerDiv);
+        }).catch(err => {
+          console.error('Failed to copy to clipboard:', err);
+          // Fallback to legacy method
+          this.fallbackCopyToClipboard(textToCopy);
+        });
+      } else {
+        // Fallback for older browsers
+        this.fallbackCopyToClipboard(textToCopy);
+      }
+    } catch (error) {
+      console.error('Error in handleCopyFromContainer:', error);
+    }
+  }
+
+  /**
+   * Fallback copy method for older browsers
+   * @param {string} text - Text to copy
+   */
+  fallbackCopyToClipboard(text) {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+
+      if (successful) {
+        console.log('✅ Content copied to clipboard using fallback method');
+      } else {
+        console.error('❌ Failed to copy content using fallback method');
+      }
+    } catch (err) {
+      console.error('❌ Fallback copy failed:', err);
+    }
+  }
+
+  /**
+   * Show brief visual feedback when content is copied
+   * @param {HTMLElement} containerDiv - The conversation container element
+   */
+  showCopyFeedback(containerDiv) {
+    const copyButton = containerDiv.querySelector('.btn-secondary');
+    if (copyButton) {
+      const originalContent = copyButton.innerHTML;
+      copyButton.innerHTML = '<img src="../icons/check.png" alt="Copied" style="width:12px; height:12px;" />';
+
+      setTimeout(() => {
+        copyButton.innerHTML = originalContent;
+      }, 1500);
+    }
+  }
   handleReplace() { console.log('Replace clicked'); }
   handleSelectMedia() { console.log('Select media clicked'); }
   handleCrop() { console.log('Crop clicked'); }
