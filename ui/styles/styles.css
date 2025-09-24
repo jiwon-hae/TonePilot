@@ -384,14 +384,13 @@ textarea {
 }
 
 .input-action-btn.toggle-btn[data-active="true"] {
-  background: green;
+  background:#61c861;
   color: white;
 }
 
 .input-action-btn.toggle-btn[data-active="true"]:hover {
-  background: green;
+  background:#61c861;
 }
-
 
 .input-action-btn .label {
   display: none;
@@ -401,7 +400,7 @@ textarea {
 }
 
 .input-action-btn.toggle-btn[data-active="true"] {
-  background: green;
+  background:#61c861a5;
   color: white;
 }
 
