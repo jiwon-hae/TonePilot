@@ -501,6 +501,9 @@ function scrollToMediaElement(elementId) {
       inline: 'center'
     });
 
+    // Highlight the element briefly
+    highlightElement(element);
+
     return true;
   }
   return false;

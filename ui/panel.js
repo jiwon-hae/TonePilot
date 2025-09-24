@@ -525,8 +525,8 @@ class TonePilotPanel {
         this.uiManager.elements.mediaPopup.style.display = 'flex';
       }
 
-      // Request page media if not already loaded
-      this.messageHandler.requestPageMedia();
+      // Load page media (refresh to get latest)
+      this.loadPageMedia();
     } catch (error) {
       console.error('❌ Failed to open media popup:', error);
     }
@@ -751,13 +751,39 @@ class TonePilotPanel {
       const thumb = document.createElement('div');
       thumb.className = 'selected-media-item';
       thumb.innerHTML = `
-        <img class="selected-media-thumbnail" src="${media.src}" alt="${media.alt}">
-        <button class="selected-media-item-remove" onclick="window.tonePilotPanel.removeSelectedMedia('${media.elementId}')">×</button>
+        <img class="selected-media-thumbnail" src="${media.src}" alt="${media.alt}" data-element-id="${media.elementId}">
+        <button class="selected-media-item-remove">×</button>
       `;
+
+      // Add click handler to thumbnail image to scroll to element on page
+      const thumbnailImg = thumb.querySelector('.selected-media-thumbnail');
+      thumbnailImg.addEventListener('click', () => {
+        this.scrollToMediaOnPage(media.elementId);
+      });
+
+      // Add click handler to remove button with stopPropagation
+      const removeBtn = thumb.querySelector('.selected-media-item-remove');
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent thumbnail click from firing
+        this.removeSelectedMedia(media.elementId);
+      });
+
       selectedMediaGrid.appendChild(thumb);
     });
 
     console.log(`📸 Updated selected media display: ${selectedCount} items`);
+  }
+
+  /**
+   * Scroll to media element on the page
+   */
+  async scrollToMediaOnPage(elementId) {
+    try {
+      console.log('📍 Scrolling to media element:', elementId);
+      await this.messageHandler.sendToContentScript('scrollToMedia', { elementId });
+    } catch (error) {
+      console.error('❌ Failed to scroll to media:', error);
+    }
   }
 
   /**

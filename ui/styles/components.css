@@ -202,6 +202,7 @@
 .selected-media-grid {
   display: flex;
   gap: 8px;
+  padding: 0px 10px;
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
@@ -212,8 +213,8 @@
 }
 
 .selected-media-thumbnail {
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
   object-fit: cover;
   border-radius: 8px;
   border: 1px solid var(--border-primary);
