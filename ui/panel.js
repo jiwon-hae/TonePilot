@@ -448,9 +448,16 @@ class TonePilotPanel {
   /**
    * Handle crop button click
    */
-  handleCrop() {
-    console.log('🖼️ Crop functionality not yet implemented');
-    this.uiManager.showError('Crop feature coming soon');
+  async handleCrop() {
+    try {
+      console.log('🖼️ Crop button clicked - starting capture...');
+      console.log('🖼️ Calling messageHandler.requestCapture()...');
+      await this.messageHandler.requestCapture();
+      console.log('🖼️ requestCapture() completed');
+    } catch (error) {
+      console.error('❌ Crop failed:', error);
+      this.uiManager.showError(`Crop failed: ${error.message}`);
+    }
   }
 
   /**

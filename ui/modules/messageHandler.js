@@ -155,8 +155,32 @@ class TonePilotMessageHandler {
     // Update state
     this.stateManager.setState('capturedImageData', data);
 
+    // Create a media object for the captured image
+    const capturedMedia = {
+      type: 'capture',
+      src: data.imageData || data.dataUrl, // Image data URL
+      alt: `Captured ${new Date().toLocaleTimeString()}`,
+      width: data.width || 0,
+      height: data.height || 0,
+      elementId: `tonepilot-capture-${Date.now()}`,
+      element: 'capture',
+      timestamp: new Date().toISOString()
+    };
+
+    // Add to selected media
+    this.stateManager.state.selectedMediaIds.add(capturedMedia.elementId);
+    this.stateManager.state.selectedMediaItems.set(capturedMedia.elementId, capturedMedia);
+    this.stateManager.state.selectedMediaArray = Array.from(this.stateManager.state.selectedMediaItems.values());
+
+    // Trigger update of selected media display
+    if (window.tonePilotPanel) {
+      window.tonePilotPanel.updateSelectedMediaDisplay();
+    }
+
+    console.log('📸 Captured image added to selected media');
+
     // Update UI
-    this.uiManager.updateStatus('ready', 'Capture Ready');
+    this.uiManager.updateStatus('ready', 'Capture Added');
     this.uiManager.hideLoading();
   }
 
@@ -245,10 +269,14 @@ class TonePilotMessageHandler {
    * @returns {Promise} Capture response
    */
   async requestCapture() {
+    console.log('📸 requestCapture() called');
     this.uiManager.showLoading();
     this.uiManager.updateStatus('loading', 'Starting Capture...');
 
-    return this.sendToContentScript('startScreenAreaSelection');
+    console.log('📸 Sending startScreenAreaSelection to content script...');
+    const response = await this.sendToContentScript('startScreenAreaSelection');
+    console.log('📸 Content script response:', response);
+    return response;
   }
 
   /**

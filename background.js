@@ -283,14 +283,82 @@ function _handleSelectionData(data) {
 }
 
 /**
- * Handle screen area selection forwarding
+ * Handle screen area selection and capture
  * @private
- * @param {Object} data - Screen area data
+ * @param {Object} data - Screen area data with coordinates
  */
-function _handleScreenAreaSelected(data) {
-  _forwardMessageToPanel({
-    action: BACKGROUND_CONSTANTS.MESSAGE_ACTIONS.SCREEN_AREA_SELECTED,
-    data
+async function _handleScreenAreaSelected(data) {
+  try {
+    console.log('📸 Capturing screen area:', data);
+
+    // Get the active tab
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    // Capture the visible tab
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+      format: 'png'
+    });
+
+    console.log('📸 Tab captured, cropping to selection area...');
+
+    // Crop the image to the selected area
+    const croppedImageData = await cropImage(dataUrl, data);
+
+    // Forward to panel with the cropped image
+    _forwardMessageToPanel({
+      action: BACKGROUND_CONSTANTS.MESSAGE_ACTIONS.SCREEN_AREA_SELECTED,
+      data: {
+        ...data,
+        imageData: croppedImageData,
+        dataUrl: croppedImageData
+      }
+    });
+
+    console.log('✅ Cropped image sent to panel');
+  } catch (error) {
+    console.error('❌ Screen capture failed:', error);
+    _forwardMessageToPanel({
+      action: 'CAPTURE_ERROR',
+      data: { error: error.message }
+    });
+  }
+}
+
+/**
+ * Crop image to selected area
+ * @param {string} dataUrl - Full screenshot data URL
+ * @param {Object} area - Selected area coordinates
+ * @returns {Promise<string>} Cropped image data URL
+ */
+function cropImage(dataUrl, area) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+
+    img.onload = () => {
+      // Create canvas with selected area dimensions
+      const canvas = new OffscreenCanvas(area.width, area.height);
+      const ctx = canvas.getContext('2d');
+
+      // Draw the cropped portion
+      ctx.drawImage(
+        img,
+        area.x, area.y, area.width, area.height,  // Source rectangle
+        0, 0, area.width, area.height              // Destination rectangle
+      );
+
+      // Convert to data URL
+      canvas.convertToBlob({ type: 'image/png' })
+        .then(blob => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        })
+        .catch(reject);
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = dataUrl;
   });
 }
 

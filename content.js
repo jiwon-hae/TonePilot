@@ -761,7 +761,9 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
   }
 
   if (message.action === 'startScreenAreaSelection') {
+    console.log('📸 Content script received startScreenAreaSelection');
     startScreenAreaSelection();
+    console.log('📸 startScreenAreaSelection() called');
     sendResponse({ success: true });
   }
 
