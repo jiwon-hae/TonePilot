@@ -155,7 +155,12 @@ class TonePilotStateManager {
    * @param {boolean} enabled - Translate mode enabled
    */
   setTranslateMode(enabled) {
+    console.log('🔄 setTranslateMode called:', {
+      enabled: enabled,
+      previousValue: this.state.translateMode
+    });
     this.setState('translateMode', enabled);
+    console.log('🔄 translateMode state after setState:', this.state.translateMode);
   }
 
   /**

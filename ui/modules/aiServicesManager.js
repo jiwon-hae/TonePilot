@@ -149,16 +149,16 @@ class TonePilotAIServicesManager {
       const translateMode = this.stateManager.getTranslateMode();
       const targetLanguage = this.stateManager.getTargetLanguage();
 
+      console.log('🔍 Translation mode check:', {
+        translateMode: translateMode,
+        targetLanguage: targetLanguage,
+        stateManagerState: this.stateManager.state.translateMode
+      });
+
       // Get text to process (either selection or input)
       const textToProcess = selectionData?.text || inputText;
       if (!textToProcess?.trim()) {
         throw new Error('No text to process');
-      }
-
-      // If translate mode is active, handle translation
-      if (translateMode) {
-        console.log('🌐 Translate mode active, target language:', targetLanguage);
-        return await this.handleTranslation(textToProcess, targetLanguage);
       }
 
       // Route the input to determine intent
@@ -183,6 +183,25 @@ class TonePilotAIServicesManager {
         default:
           result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context);
           break;
+      }
+
+      // Apply translation if translate mode is active
+      console.log('🔍 Checking translation condition:', {
+        translateMode: translateMode,
+        resultPrimary: result?.primary,
+        resultExists: !!result,
+        conditionMet: translateMode && result?.primary,
+        targetLanguage: targetLanguage
+      });
+
+      if (translateMode && result?.primary) {
+        console.log('🌐 Translate mode active, translating result to:', targetLanguage);
+        result = await this.applyTranslationToResult(result, targetLanguage);
+        console.log('✅ Translation completed, result:', result);
+      } else {
+        console.log('⏭️ Skipping translation:', {
+          reason: !translateMode ? 'translateMode is false' : !result?.primary ? 'result.primary is missing' : 'unknown'
+        });
       }
 
       // Loading will be replaced by showResults, no need to explicitly hide
@@ -546,6 +565,56 @@ class TonePilotAIServicesManager {
       } catch (fallbackError) {
         throw new Error(`Both translation and language model failed: ${error.message}; ${fallbackError.message}`);
       }
+    }
+  }
+
+  /**
+   * Apply translation to a result object
+   * @param {Object} result - Result object from any service
+   * @param {string} targetLanguage - Target language code
+   * @returns {Object} Result with translated primary content
+   */
+  async applyTranslationToResult(result, targetLanguage) {
+    console.log('🎯 applyTranslationToResult called with:', {
+      result: result,
+      targetLanguage: targetLanguage,
+      resultPrimary: result?.primary
+    });
+
+    try {
+      const textToTranslate = result.primary;
+
+      if (!textToTranslate || typeof textToTranslate !== 'string') {
+        console.warn('⚠️ No valid text to translate in result:', {
+          textToTranslate: textToTranslate,
+          type: typeof textToTranslate,
+          result: result
+        });
+        return result;
+      }
+
+      console.log('🔄 Translating result:', textToTranslate);
+
+      // Use translation service to translate the result
+      const translationResult = await this.handleTranslation(textToTranslate, targetLanguage);
+
+      // Return modified result with translated primary content
+      return {
+        ...result,
+        primary: translationResult.primary,
+        originalPrimary: textToTranslate, // Keep original for reference
+        translatedFrom: translationResult.sourceLanguage,
+        translatedTo: translationResult.targetLanguage,
+        translationConfidence: translationResult.confidence,
+        wasTranslated: true
+      };
+    } catch (error) {
+      console.error('❌ Failed to translate result:', error);
+      // Return original result if translation fails
+      return {
+        ...result,
+        translationError: error.message
+      };
     }
   }
 
