@@ -180,27 +180,33 @@ class TonePilotAIServicesManager {
         case 'write':
           result = await this.handleWrite(inputText, selectionData?.text, selectionData?.platform);
           break;
+        case 'translate':
+          result = await this.handleTranslation(textToProcess, targetLanguage);
+          break;
         default:
           result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context);
           break;
       }
 
-      // Apply translation if translate mode is active
+      // Apply translation if translate mode is active (but skip if intent was already translate)
       console.log('🔍 Checking translation condition:', {
         translateMode: translateMode,
         resultPrimary: result?.primary,
         resultExists: !!result,
-        conditionMet: translateMode && result?.primary,
+        routingIntent: routing.intent,
+        conditionMet: translateMode && result?.primary && routing.intent !== 'translate',
         targetLanguage: targetLanguage
       });
 
-      if (translateMode && result?.primary) {
+      if (translateMode && result?.primary && routing.intent !== 'translate') {
         console.log('🌐 Translate mode active, translating result to:', targetLanguage);
         result = await this.applyTranslationToResult(result, targetLanguage);
         console.log('✅ Translation completed, result:', result);
       } else {
         console.log('⏭️ Skipping translation:', {
-          reason: !translateMode ? 'translateMode is false' : !result?.primary ? 'result.primary is missing' : 'unknown'
+          reason: !translateMode ? 'translateMode is false' :
+                  !result?.primary ? 'result.primary is missing' :
+                  routing.intent === 'translate' ? 'intent was already translate' : 'unknown'
         });
       }
 

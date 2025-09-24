@@ -244,6 +244,10 @@ class TranslationService {
       console.log(`< Detected language: ${sourceLanguage} (confidence: ${detectionConfidence})`);
     }
 
+    if (options.targetLanguage === sourceLanguage) {
+        return text;
+    }
+
     // Initialize translator with language pair
     await this.initializeTranslator({
       sourceLanguage: sourceLanguage,

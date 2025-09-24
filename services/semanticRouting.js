@@ -15,6 +15,7 @@ class SemanticRouter {
       rewrite: /\b(revise|rewrite|rephrase|improve|clarity|concise|tone|formal|casual|polish|enhance|refine)\b/i,
       write: /\b(draft|write|compose|create|email|cover\s*letter|blog|message|outreach|letter)\b/i,
       summarize: /\b(summarize|summary|tldr|key\s*points|brief|overview|abstract|condensed?|digest)\b/i,
+      translate: /\b(translate|translation|convert|to\s+(english|spanish|french|german|italian|portuguese|russian|japanese|korean|chinese|arabic|hindi|dutch|polish|turkish|vietnamese|thai|indonesian|swedish|danish|finnish|norwegian|czech|hungarian|romanian|ukrainian|greek|hebrew))\b/i,
     };
   }
 
@@ -54,6 +55,8 @@ class SemanticRouter {
         return { type: "write", instructions: text };
       case "summarize":
         return { type: "summarize", text, summaryType: "key-points", length: "medium" };
+      case "translate":
+        return { type: "translate", text };
       default:
         return { type: "prompt", text };
     }
