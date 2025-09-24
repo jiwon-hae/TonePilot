@@ -100,6 +100,42 @@ class TonePilotUIManager {
         this.eventListeners.push({ element: this.elements.closeMediaBtn, event: 'click', handler: closeHandler });
       }
 
+      // Document popup events
+      if (this.elements.documentBtn) {
+        const docHandler = () => this.handleOpenDocument();
+        this.elements.documentBtn.addEventListener('click', docHandler);
+        this.eventListeners.push({ element: this.elements.documentBtn, event: 'click', handler: docHandler });
+      }
+
+      if (this.elements.closeDocumentBtn) {
+        const closeHandler = () => this.handleCloseDocument();
+        this.elements.closeDocumentBtn.addEventListener('click', closeHandler);
+        this.eventListeners.push({ element: this.elements.closeDocumentBtn, event: 'click', handler: closeHandler });
+      }
+
+      if (this.elements.saveDocumentBtn) {
+        const saveHandler = () => this.handleSaveDocument();
+        this.elements.saveDocumentBtn.addEventListener('click', saveHandler);
+        this.eventListeners.push({ element: this.elements.saveDocumentBtn, event: 'click', handler: saveHandler });
+      }
+
+      // Resume upload events - upload area click
+      if (this.elements.uploadArea && this.elements.resumeUpload) {
+        const uploadHandler = () => this.elements.resumeUpload.click();
+        this.elements.uploadArea.addEventListener('click', uploadHandler);
+        this.eventListeners.push({ element: this.elements.uploadArea, event: 'click', handler: uploadHandler });
+
+        const fileHandler = (e) => this.handleResumeUpload(e);
+        this.elements.resumeUpload.addEventListener('change', fileHandler);
+        this.eventListeners.push({ element: this.elements.resumeUpload, event: 'change', handler: fileHandler });
+      }
+
+      if (this.elements.removeResumeBtn) {
+        const removeHandler = () => this.handleRemoveResume();
+        this.elements.removeResumeBtn.addEventListener('click', removeHandler);
+        this.eventListeners.push({ element: this.elements.removeResumeBtn, event: 'click', handler: removeHandler });
+      }
+
       // Tab navigation
       this.bindTabEvents();
 
@@ -1596,6 +1632,140 @@ class TonePilotUIManager {
         }
       }
     }
+  }
+
+  handleOpenDocument() {
+    console.log('📄 Opening document popup');
+    if (this.elements.documentPopup) {
+      this.elements.documentPopup.style.display = 'flex';
+      this.loadDocumentData();
+    }
+  }
+
+  handleCloseDocument() {
+    console.log('📄 Closing document popup');
+    if (this.elements.documentPopup) {
+      this.elements.documentPopup.style.display = 'none';
+    }
+  }
+
+  async handleSaveDocument() {
+    console.log('💾 Saving document data');
+    try {
+      const emailSubject = this.elements.emailSubject?.value || '';
+      const coldEmailTemplate = this.elements.coldEmailTemplate?.value || '';
+
+      await chrome.storage.local.set({
+        emailSubject: emailSubject,
+        coldEmailTemplate: coldEmailTemplate
+      });
+
+      console.log('✅ Document data saved successfully');
+      this.handleCloseDocument();
+    } catch (error) {
+      console.error('❌ Failed to save document data:', error);
+      this.showError('Failed to save document data');
+    }
+  }
+
+  async loadDocumentData() {
+    console.log('📂 Loading document data');
+    try {
+      const data = await chrome.storage.local.get(['resumeData', 'emailSubject', 'coldEmailTemplate']);
+
+      if (data.emailSubject && this.elements.emailSubject) {
+        this.elements.emailSubject.value = data.emailSubject;
+      }
+
+      if (data.coldEmailTemplate && this.elements.coldEmailTemplate) {
+        this.elements.coldEmailTemplate.value = data.coldEmailTemplate;
+      }
+
+      if (data.resumeData) {
+        this.displayResumePreview(data.resumeData);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load document data:', error);
+    }
+  }
+
+  async handleResumeUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    console.log('📤 Uploading resume:', file.name);
+
+    if (file.size > 5 * 1024 * 1024) {
+      this.showError('File size must be less than 5MB');
+      return;
+    }
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const resumeData = {
+          filename: file.name,
+          size: file.size,
+          type: file.type,
+          content: e.target.result,
+          uploadedAt: new Date().toISOString()
+        };
+
+        await chrome.storage.local.set({ resumeData });
+        this.displayResumePreview(resumeData);
+        console.log('✅ Resume uploaded successfully');
+      };
+
+      if (file.type === 'application/pdf' || file.type.includes('word')) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
+    } catch (error) {
+      console.error('❌ Resume upload failed:', error);
+      this.showError('Failed to upload resume');
+    }
+  }
+
+  displayResumePreview(resumeData) {
+    if (!this.elements.resumePreview) return;
+
+    const filename = this.elements.resumePreview.querySelector('.resume-filename');
+    if (filename) filename.textContent = resumeData.filename;
+
+    this.elements.resumePreview.style.display = 'flex';
+    if (this.elements.uploadArea) this.elements.uploadArea.style.display = 'none';
+  }
+
+  async handleRemoveResume() {
+    console.log('🗑️ Removing resume');
+    try {
+      await chrome.storage.local.remove('resumeData');
+
+      if (this.elements.resumePreview) {
+        this.elements.resumePreview.style.display = 'none';
+      }
+
+      if (this.elements.uploadArea) {
+        this.elements.uploadArea.style.display = 'block';
+      }
+
+      if (this.elements.resumeUpload) {
+        this.elements.resumeUpload.value = '';
+      }
+
+      console.log('✅ Resume removed successfully');
+    } catch (error) {
+      console.error('❌ Failed to remove resume:', error);
+    }
+  }
+
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   }
 }
 

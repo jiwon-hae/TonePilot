@@ -36,7 +36,10 @@ const TONEPILOT_CONSTANTS = {
       'mediaCount', 'selectMediaBtn', 'selectedMediaDisplay', 'selectedMediaGrid',
       'clearBtn', 'translateBtn', 'settingsBtn', 'settingsPopup', 'closeSettingsBtn', 'saveSettingsBtn',
       'maxCharactersInput', 'formalityTogglePopup', 'targetLanguageSelect', 'cropBtn', 'submitBtn',
-      'mediaBtn', 'mediaPopup', 'closeMediaBtn'
+      'mediaBtn', 'mediaPopup', 'closeMediaBtn',
+      'documentBtn', 'documentPopup', 'closeDocumentBtn', 'saveDocumentBtn',
+      'resumeUpload', 'resumePreview', 'coldEmailTemplate', 'removeResumeBtn',
+      'uploadArea', 'emailSubject'
     ],
     SELECTORS: {
       inputContainer: '.input-container'

@@ -246,6 +246,71 @@
     </div>
   </div>
 
+  <!-- Document Upload Popup -->
+  <div id="documentPopup" class="document-popup" style="display: none;">
+    <div class="document-popup-overlay"></div>
+    <div class="document-popup-content">
+      <div class="document-popup-header">
+        <h3>Resume & Email Template</h3>
+        <button id="closeDocumentBtn" class="document-close-btn">×</button>
+      </div>
+      <div class="document-popup-body">
+        <!-- Resume Upload Section -->
+        <div class="document-section">
+          <div class="section-header">
+            <img src="../icons/add.png" alt="Resume" style="width:16px; height:16px; margin-right: 8px;" />
+            <span>Resume Upload</span>
+          </div>
+
+          <input type="file" id="resumeUpload" accept=".pdf,.doc,.docx,.txt" style="display: none;" />
+
+          <!-- Upload Area -->
+          <div id="uploadArea" class="upload-area">
+            <div class="upload-icon">
+              <img src="../icons/upload.png" alt="Upload"/>
+            </div>
+            <div class="upload-text">Click to upload resume</div>
+            <div class="upload-hint">PDF, DOC, DOCX or TXT up to 10MB</div>
+          </div>
+
+          <!-- Resume Preview (hidden by default) -->
+          <div id="resumePreview" class="resume-file-preview" style="display: none;">
+            <div class="file-info">
+              <img src="../icons/document.png" alt="File" style="width:16px; height:16px; margin-right: 8px;" />
+              <span class="resume-filename">resume_john_doe.pdf</span>
+            </div>
+            <button id="removeResumeBtn" class="file-remove-btn">
+              <img src="../icons/dumpster.png" alt="Remove" style="width:16px; height:16px;"/>
+            </button>
+          </div>
+        </div>
+
+        <!-- Email Template Section -->
+        <div class="document-section">
+          <div class="section-header">
+            <img src="../icons/email.png" alt="Email" style="width:16px; height:16px; margin-right: 8px;" />
+            <span>Email Template</span>
+          </div>
+
+          <div class="template-fields">
+            <div class="field-group">
+              <label class="field-label">Subject Line</label>
+              <input type="text" id="emailSubject" class="template-input" placeholder="Enter email subject..." />
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Email Body</label>
+              <textarea id="coldEmailTemplate" class="template-textarea" rows="6" placeholder="Write your cold email template here..."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="document-popup-footer">
+        <button id="saveDocumentBtn" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Core Services -->
   <script src="../services/storageService.js"></script>
   <script src="../services/aiSetupService.js"></script>
@@ -256,6 +321,7 @@
   <script src="../services/rewriterService.js"></script>
   <script src="../services/writerService.js"></script>
   <script src="../services/translationService.js"></script>
+  <script src="../services/documentService.js"></script>
 
   <!-- UI Modules (load before main panel) -->
   <script src="modules/constants.js"></script>
