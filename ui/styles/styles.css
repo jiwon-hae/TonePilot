@@ -431,13 +431,14 @@ textarea {
 }
 
 .btn-primary {
-  background: var(--accent-green);
+  background: var(--secondary-bg);
+  border: 1px solid #65a4d9;
   color: white;
   flex: 1;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-green-hover);
+  background: var(-secondary-bg-hover);
 }
 
 .btn-secondary {
@@ -758,4 +759,21 @@ textarea {
   gap: 8px;
   max-height: 300px;
   overflow-y: auto;
+}
+
+.saveDocumentBtn {
+  display: inline-flex;        /* use flexbox */
+  align-items: center;         /* vertical center */
+  justify-content: center;     /* horizontal center (optional) */
+  gap: 6px;                    /* spacing between icon and text */
+}
+
+.saveDocumentBtn .icon {
+  width: 16px;
+  height: 16px;
+  display: block;              /* remove inline baseline misalignment */
+}
+
+.saveDocumentBtn:hover {
+  opacity: 0.85;
 }
