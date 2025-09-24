@@ -1695,35 +1695,40 @@ class TonePilotUIManager {
 
     console.log('📤 Uploading resume:', file.name);
 
-    if (file.size > 5 * 1024 * 1024) {
-      this.showError('File size must be less than 5MB');
+    // Validate file size (10MB limit as shown in UI)
+    if (file.size > 10 * 1024 * 1024) {
+      this.showError('File size must be less than 10MB');
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const allowedExtensions = ['.pdf', '.docx'];
+
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext))) {
+      this.showError('Please upload a PDF or DOCX file');
       return;
     }
 
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const resumeData = {
-          filename: file.name,
-          size: file.size,
-          type: file.type,
-          content: e.target.result,
-          uploadedAt: new Date().toISOString()
-        };
+      // Show loading state
+      this.showLoading();
 
-        await chrome.storage.local.set({ resumeData });
-        this.displayResumePreview(resumeData);
-        console.log('✅ Resume uploaded successfully');
-      };
+      // Use DocumentService to parse and save the resume
+      const resumeData = await window.DocumentService.saveResumeData(file);
 
-      if (file.type === 'application/pdf' || file.type.includes('word')) {
-        reader.readAsDataURL(file);
-      } else {
-        reader.readAsText(file);
-      }
+      // Display preview
+      this.displayResumePreview(resumeData);
+
+      // Hide loading state
+      this.hideLoading();
+
+      console.log('✅ Resume uploaded and parsed successfully');
+
     } catch (error) {
       console.error('❌ Resume upload failed:', error);
-      this.showError('Failed to upload resume');
+      this.hideLoading();
+      this.showError(`Failed to upload resume: ${error.message}`);
     }
   }
 

@@ -347,6 +347,13 @@ class TonePilotAIServicesManager {
         }
 
         prompt += `\n\nText to process: "${text}"`;
+
+        // Add document context if relevant (resume, email templates, etc.)
+        const documentContext = await this.getDocumentContext(instructions);
+        if (documentContext) {
+          prompt = `${prompt}${documentContext}`;
+        }
+
         const result = await promptService.send(prompt);
         return {
           primary: result,
@@ -449,6 +456,12 @@ class TonePilotAIServicesManager {
           prompt = `${prompt}\n\nContext to consider: "${context}"`;
         }
 
+        // Add document context if relevant (resume, email templates, etc.)
+        const documentContext = await this.getDocumentContext(query);
+        if (documentContext) {
+          prompt = `${prompt}${documentContext}`;
+        }
+
         const result = await promptService.send(prompt);
         return {
           primary: result,
@@ -472,15 +485,22 @@ class TonePilotAIServicesManager {
         platform: platform
       });
 
+      // Build enhanced context with document data if relevant (resume, email templates, etc.)
+      let enhancedContext = context;
+      const documentContext = await this.getDocumentContext(query);
+      if (documentContext) {
+        enhancedContext = context ? `${context}${documentContext}` : documentContext.trim();
+      }
+
       // Use Writer API
-      const result = await this.writerService.write(query, context, {
-        context: context || undefined
+      const result = await this.writerService.write(query, enhancedContext, {
+        context: enhancedContext || undefined
       });
 
       return {
         primary: result.output,
         original: query,
-        context: context || '',
+        context: enhancedContext || '',
         type: 'write',
         service: 'writer',
         tone: tone,
@@ -501,6 +521,12 @@ class TonePilotAIServicesManager {
         // Add context if provided
         if (context && context.trim()) {
           prompt = `${prompt}\n\nContext to consider: "${context}"`;
+        }
+
+        // Add document context if relevant (resume, email templates, etc.)
+        const documentContext = await this.getDocumentContext(query);
+        if (documentContext) {
+          prompt = `${prompt}${documentContext}`;
         }
 
         const result = await promptService.send(prompt);
@@ -880,6 +906,88 @@ class TonePilotAIServicesManager {
       this.rewriterService &&
       this.summarizerService
     );
+  }
+
+  /**
+   * Check if resume context is relevant for the given query
+   * @param {string} query - User query text
+   * @returns {boolean} Whether resume context should be included
+   */
+  isResumeContextRelevant(query) {
+    const text = query.toLowerCase();
+    const resumeKeywords = [
+      'cover letter', 'application', 'apply', 'job', 'position', 'role',
+      'career', 'professional', 'experience', 'qualifications',
+      'skills', 'background', 'resume', 'cv', 'portfolio'
+    ];
+
+    return resumeKeywords.some(keyword => text.includes(keyword));
+  }
+
+  /**
+   * Check if email template context is relevant for the given query
+   * @param {string} query - User query text
+   * @returns {boolean} Whether email template context should be included
+   */
+  isEmailContextRelevant(query) {
+    const text = query.toLowerCase();
+    const emailKeywords = [
+      'email', 'cold email', 'outreach', 'networking', 'contact',
+      'reach out', 'send', 'write to', 'message', 'follow up',
+      'introduction', 'connect', 'inquiry', 'pitch'
+    ];
+
+    return emailKeywords.some(keyword => text.includes(keyword));
+  }
+
+  /**
+   * Get document context for AI processing (resume, email templates, etc.)
+   * @param {string} query - User query to determine what context to include
+   * @returns {Promise<string|null>} Document context or null if not available
+   */
+  async getDocumentContext(query) {
+    try {
+      const includeResume = this.isResumeContextRelevant(query);
+      const includeEmail = this.isEmailContextRelevant(query);
+
+      if (!includeResume && !includeEmail) {
+        return null;
+      }
+
+      let context = '';
+
+      if (includeResume || includeEmail) {
+        // Use the full context which includes resume, email subject, and template
+        const documentContext = await window.DocumentService.buildColdEmailContext();
+        if (documentContext) {
+          console.log('📄 Including document context in AI processing');
+          context = `\n\n--- Personal Context ---\n${documentContext}`;
+        }
+      }
+
+      return context || null;
+    } catch (error) {
+      console.error('Failed to get document context:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get resume context for AI processing (legacy method - use getDocumentContext instead)
+   * @returns {Promise<string|null>} Resume context or null if not available
+   */
+  async getResumeContext() {
+    try {
+      const resumeContext = await window.DocumentService.buildColdEmailContext();
+      if (resumeContext) {
+        console.log('📄 Including resume context in AI processing');
+        return `\n\n--- Personal Context ---\n${resumeContext}`;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to get resume context:', error);
+      return null;
+    }
   }
 
   /**
