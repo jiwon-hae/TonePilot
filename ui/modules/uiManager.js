@@ -196,6 +196,10 @@ class TonePilotUIManager {
    * @param {Object} selectionData - Selection data
    */
   updateSelectionDisplay(selectionData) {
+    // Store the previous height before updating
+    const previousHeight = this.elements.selectedTextDisplay?.offsetHeight || 0;
+    const wasVisible = this.elements.selectedTextDisplay?.style.display !== 'none';
+
     if (this.elements.selectedTextContent) {
       this.elements.selectedTextContent.textContent = `"${selectionData.text}"`;
     }
@@ -207,18 +211,50 @@ class TonePilotUIManager {
     if (this.elements.inputContainer) {
       this.elements.inputContainer.classList.add('has-selected-text');
     }
+
+    // Adjust filler if selection display height changed
+    requestAnimationFrame(() => {
+      const newHeight = this.elements.selectedTextDisplay?.offsetHeight || 0;
+      const heightChange = wasVisible ? (newHeight - previousHeight) : newHeight;
+
+      if (heightChange !== 0) {
+        console.log('📏 Selection display size changed:', {
+          previousHeight,
+          newHeight,
+          heightChange,
+          wasVisible
+        });
+        this.adjustFillerForFooterChange(heightChange);
+      }
+    });
   }
 
   /**
    * Clear selection display
    */
   clearSelectionDisplay() {
+    // Store the previous height before clearing
+    const previousHeight = this.elements.selectedTextDisplay?.offsetHeight || 0;
+    const wasVisible = this.elements.selectedTextDisplay?.style.display !== 'none';
+
     if (this.elements.selectedTextDisplay) {
       this.elements.selectedTextDisplay.style.display = 'none';
     }
 
     if (this.elements.inputContainer) {
       this.elements.inputContainer.classList.remove('has-selected-text');
+    }
+
+    // Adjust filler if selection was visible and now hidden
+    if (wasVisible && previousHeight > 0) {
+      requestAnimationFrame(() => {
+        const heightChange = -previousHeight; // Negative because we're removing height
+        console.log('📏 Selection display cleared:', {
+          previousHeight,
+          heightChange
+        });
+        this.adjustFillerForFooterChange(heightChange);
+      });
     }
   }
 
@@ -1048,6 +1084,42 @@ class TonePilotUIManager {
         });
       });
     });
+  }
+
+  /**
+   * Adjust filler when footer elements (like selection display) change size
+   * @param {number} heightChange - The change in footer height (positive = grew, negative = shrunk)
+   */
+  adjustFillerForFooterChange(heightChange) {
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent) return;
+
+    const existingFiller = mainContent.querySelector('.conversation-filler');
+    if (!existingFiller) {
+      console.log('📏 No filler to adjust for footer change');
+      return;
+    }
+
+    const currentFillerHeight = existingFiller.offsetHeight;
+    // When footer grows (positive heightChange), reduce filler by that amount
+    // When footer shrinks (negative heightChange), increase filler by that amount
+    const newFillerHeight = Math.max(0, currentFillerHeight - heightChange);
+
+    console.log('📏 Adjusting filler for footer change:', {
+      heightChange,
+      currentFillerHeight,
+      newFillerHeight,
+      action: heightChange > 0 ? 'reducing filler (footer grew)' : 'increasing filler (footer shrunk)'
+    });
+
+    existingFiller.style.height = `${newFillerHeight}px`;
+    existingFiller.style.minHeight = `${newFillerHeight}px`;
+
+    // Update stored initial filler height for future calculations
+    if (existingFiller.dataset.initialFillerHeight) {
+      const updatedInitialHeight = parseInt(existingFiller.dataset.initialFillerHeight) - heightChange;
+      existingFiller.dataset.initialFillerHeight = Math.max(0, updatedInitialHeight).toString();
+    }
   }
 
   /**
