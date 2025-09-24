@@ -538,6 +538,8 @@ class TonePilotUIManager {
    */
   showResults(results, conversationContainer) {
     console.log('🎯 Following user specification - Step 4: Replace loading with generated text');
+    console.log('📊 Results object:', results);
+    console.log('📦 Conversation container:', conversationContainer);
 
     // DISABLE SCROLLING completely during content changes to prevent any movement
     const mainContent = document.querySelector('.main-content');

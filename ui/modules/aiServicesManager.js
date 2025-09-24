@@ -181,7 +181,15 @@ class TonePilotAIServicesManager {
           result = await this.handleWrite(inputText, selectionData?.text, selectionData?.platform);
           break;
         case 'translate':
-          result = await this.handleTranslation(textToProcess, targetLanguage);
+          // Extract target language from input, fallback to settings
+          const extractedLanguage = this.extractTargetLanguage(inputText);
+          const translationTarget = extractedLanguage || targetLanguage;
+          console.log('🌐 Translation request:', {
+            extractedFromInput: extractedLanguage,
+            fromSettings: targetLanguage,
+            using: translationTarget
+          });
+          result = await this.handleTranslation(textToProcess, translationTarget);
           break;
         default:
           result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context);
@@ -528,13 +536,15 @@ class TonePilotAIServicesManager {
         const promptService = new window.PromptService();
         const prompt = `Translate the following text to ${this.getLanguageName(targetLanguage)}:\n\n"${text}"`;
         const result = await promptService.send(prompt);
-        return {
+        const translationResult = {
           primary: result,
           original: text,
           type: 'translate',
           service: 'languageModel',
           targetLanguage: targetLanguage
         };
+        console.log('🔄 Translation result (languageModel):', translationResult);
+        return translationResult;
       } catch (error) {
         throw new Error(`Language model translation fallback failed: ${error.message}`);
       }
@@ -545,7 +555,7 @@ class TonePilotAIServicesManager {
         targetLanguage: targetLanguage
       });
 
-      return {
+      const translationResult = {
         primary: result.translated,
         original: result.original,
         type: 'translate',
@@ -555,6 +565,8 @@ class TonePilotAIServicesManager {
         confidence: result.confidence,
         metadata: result.metadata
       };
+      console.log('🔄 Translation result (translator):', translationResult);
+      return translationResult;
     } catch (error) {
       console.error('❌ Translation service failed, using language model fallback:', error);
       try {
@@ -622,6 +634,57 @@ class TonePilotAIServicesManager {
         translationError: error.message
       };
     }
+  }
+
+  /**
+   * Extract target language from user input
+   * @param {string} input - User input text
+   * @returns {string|null} Language code or null if not found
+   */
+  extractTargetLanguage(input) {
+    const text = input.toLowerCase();
+
+    const languagePatterns = {
+      'en': /\b(to\s+)?english\b/i,
+      'es': /\b(to\s+)?spanish\b/i,
+      'fr': /\b(to\s+)?french\b/i,
+      'de': /\b(to\s+)?german\b/i,
+      'it': /\b(to\s+)?italian\b/i,
+      'pt': /\b(to\s+)?portuguese\b/i,
+      'ru': /\b(to\s+)?russian\b/i,
+      'ja': /\b(to\s+)?japanese\b/i,
+      'ko': /\b(to\s+)?korean\b/i,
+      'zh': /\b(to\s+)?(chinese|mandarin|simplified\s+chinese)\b/i,
+      'zh-TW': /\b(to\s+)?(traditional\s+chinese|taiwanese)\b/i,
+      'ar': /\b(to\s+)?arabic\b/i,
+      'hi': /\b(to\s+)?hindi\b/i,
+      'nl': /\b(to\s+)?dutch\b/i,
+      'pl': /\b(to\s+)?polish\b/i,
+      'tr': /\b(to\s+)?turkish\b/i,
+      'vi': /\b(to\s+)?vietnamese\b/i,
+      'th': /\b(to\s+)?thai\b/i,
+      'id': /\b(to\s+)?indonesian\b/i,
+      'sv': /\b(to\s+)?swedish\b/i,
+      'da': /\b(to\s+)?danish\b/i,
+      'fi': /\b(to\s+)?finnish\b/i,
+      'no': /\b(to\s+)?norwegian\b/i,
+      'cs': /\b(to\s+)?czech\b/i,
+      'hu': /\b(to\s+)?hungarian\b/i,
+      'ro': /\b(to\s+)?romanian\b/i,
+      'uk': /\b(to\s+)?ukrainian\b/i,
+      'el': /\b(to\s+)?greek\b/i,
+      'he': /\b(to\s+)?hebrew\b/i
+    };
+
+    for (const [code, pattern] of Object.entries(languagePatterns)) {
+      if (pattern.test(text)) {
+        console.log(`🎯 Detected target language: ${code} from input:`, input);
+        return code;
+      }
+    }
+
+    console.log('⚠️ No target language detected in input, using settings default');
+    return null;
   }
 
   /**
