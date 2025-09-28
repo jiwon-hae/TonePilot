@@ -59,7 +59,7 @@ class PromptService {
      * @param {List[image]} images - The list of images, default is null
      * @returns {output} Text output of returned by prompt api
      */
-    async send(input, images = None) {
+    async send(input, images = []) {
         const s = await this.ensure();
         const content = [{ type: "text", value: input }];
         for (const img of images) {
