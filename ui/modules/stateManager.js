@@ -16,7 +16,8 @@ class TonePilotStateManager {
       currentMaxCharacters: window.TONEPILOT_CONSTANTS.DEFAULTS.MAX_CHARACTERS,
       currentFormalityToggle: window.TONEPILOT_CONSTANTS.DEFAULTS.FORMALITY_TOGGLE,
       targetLanguage: window.TONEPILOT_CONSTANTS.DEFAULTS.TARGET_LANGUAGE,
-      translateMode: false
+      translateMode: false,
+      detailMode: false
     };
 
     this.listeners = new Map();
@@ -109,7 +110,9 @@ class TonePilotStateManager {
       selectedMediaItems: new Map(),
       selectedMediaArray: [],
       currentMaxCharacters: window.TONEPILOT_CONSTANTS.DEFAULTS.MAX_CHARACTERS,
-      currentFormalityToggle: window.TONEPILOT_CONSTANTS.DEFAULTS.FORMALITY_TOGGLE
+      currentFormalityToggle: window.TONEPILOT_CONSTANTS.DEFAULTS.FORMALITY_TOGGLE,
+      translateMode: false,
+      detailMode: false
     };
   }
 
@@ -177,6 +180,27 @@ class TonePilotStateManager {
    */
   getTargetLanguage() {
     return this.state.targetLanguage || 'en';
+  }
+
+  /**
+   * Set detail mode
+   * @param {boolean} enabled - Detail mode enabled
+   */
+  setDetailMode(enabled) {
+    console.log('🔄 setDetailMode called:', {
+      enabled: enabled,
+      previousValue: this.state.detailMode
+    });
+    this.setState('detailMode', enabled);
+    console.log('🔄 detailMode state after setState:', this.state.detailMode);
+  }
+
+  /**
+   * Get detail mode state
+   * @returns {boolean} Detail mode enabled
+   */
+  getDetailMode() {
+    return this.state.detailMode;
   }
 }
 

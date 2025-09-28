@@ -145,6 +145,13 @@ class TonePilotAIServicesManager {
     try {
       this.uiManager.hideError();
 
+      // Check if detail mode is active - show step indicator if so
+      const detailMode = this.stateManager.getDetailMode();
+      if (detailMode) {
+        this.uiManager.showStepIndicator();
+        this.uiManager.updateStepStatus('routing', 'active', 'semantic-routing');
+      }
+
       // Check if translate mode is active
       const translateMode = this.stateManager.getTranslateMode();
       const targetLanguage = this.stateManager.getTargetLanguage();
@@ -165,20 +172,25 @@ class TonePilotAIServicesManager {
       const routing = await this.semanticRouter.route(inputText);
       console.log('🎯 Routing result:', routing);
 
+      // Update step indicator - routing completed, start processing
+      if (detailMode) {
+        this.uiManager.completeStep('routing', 'processing', 'ai-service');
+      }
+
       // Process based on intent
       let result;
       switch (routing.intent) {
         case 'proofread':
-          result = await this.handleProofread(textToProcess);
+          result = await this.handleProofread(textToProcess, routing);
           break;
         case 'summarize':
-          result = await this.handleSummarize(textToProcess, selectionData?.platform, selectionData?.context);
+          result = await this.handleSummarize(textToProcess, selectionData?.platform, selectionData?.context, routing);
           break;
         case 'rewrite':
-          result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context);
+          result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context, routing);
           break;
         case 'write':
-          result = await this.handleWrite(inputText, selectionData?.text, selectionData?.platform);
+          result = await this.handleWrite(inputText, selectionData?.text, selectionData?.platform, routing);
           break;
         case 'translate':
           // Extract target language from input, fallback to settings
@@ -192,8 +204,13 @@ class TonePilotAIServicesManager {
           result = await this.handleTranslation(textToProcess, translationTarget);
           break;
         default:
-          result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context);
+          result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context, routing);
           break;
+      }
+
+      // Update step indicator - processing completed
+      if (detailMode) {
+        this.uiManager.updateStepStatus('processing', 'completed');
       }
 
       // Apply translation if translate mode is active (but skip if intent was already translate)
@@ -218,10 +235,32 @@ class TonePilotAIServicesManager {
         });
       }
 
+      // Apply reflection if detail mode is active
+      console.log('🔍 Detail mode check:', {
+        detailMode: detailMode,
+        resultExists: !!result?.primary
+      });
+
+      if (detailMode && result?.primary) {
+        console.log('📋 Detail mode active, applying reflection...');
+        this.uiManager.updateStepStatus('reflection', 'active', 'quality-analysis');
+        result = await this.applyReflection(result, textToProcess, inputText, routing);
+        console.log('✅ Reflection completed, result:', result);
+
+        // Complete all steps
+        this.uiManager.completeAllSteps();
+      } else if (detailMode) {
+        // If detail mode but no reflection needed, complete remaining steps
+        this.uiManager.updateStepStatus('reflection', 'completed');
+        this.uiManager.updateStepStatus('improvement', 'completed');
+      }
+
       // Loading will be replaced by showResults, no need to explicitly hide
       return {
         ...result,
         intent: routing.intent,
+        outputType: routing.outputType,
+        tones: routing.tones,
         via: routing.via,
         score: routing.score
       };
@@ -246,7 +285,7 @@ class TonePilotAIServicesManager {
    * @param {string} text - Text to proofread
    * @returns {Object} Proofread results
    */
-  async handleProofread(text) {
+  async handleProofread(text, routing = null) {
     console.log('📝 Proofreading text...');
 
     if (!this.proofreaderService.isAvailable) {
@@ -276,7 +315,7 @@ class TonePilotAIServicesManager {
    * @param {Object} context - Additional context from platform (author, engagement, etc.)
    * @returns {Object} Summary results
    */
-  async handleSummarize(text, platform, context) {
+  async handleSummarize(text, platform, context, routing = null) {
     console.log('📋 Summarizing text...');
     console.log('Platform:', platform);
     console.log('Context:', context);
@@ -325,13 +364,17 @@ class TonePilotAIServicesManager {
    * @param {Object} context - Additional context from platform
    * @returns {Object} Rewrite results
    */
-  async handleRewrite(text, instructions, platform, context) {
+  async handleRewrite(text, instructions, platform, context, routing = null) {
     console.log('✏️ Rewriting text...');
     console.log('Platform:', platform);
     console.log('Context:', context);
+    console.log('📝 Routing info:', routing);
 
-    // Determine tone from instructions
-    const tone = this.extractToneFromInstructions(instructions);
+    // Determine tone from instructions (enhanced with routing info)
+    const tone = routing?.tones?.length > 0 ? routing.tones[0] : this.extractToneFromInstructions(instructions);
+    const outputType = routing?.outputType;
+
+    console.log('🎨 Detected tone:', tone, 'Output type:', outputType);
 
     if (!this.rewriterService.isAvailable) {
       console.warn('⚠️ Rewriter service not available, using language model fallback');
@@ -428,14 +471,18 @@ class TonePilotAIServicesManager {
    * @param {string} platform - Platform identifier for context-aware writing
    * @returns {Object} Write results
    */
-  async handleWrite(query, context, platform) {
+  async handleWrite(query, context, platform, routing = null) {
     console.log('✏️ Writing text...');
     console.log('Query:', query);
     console.log('Context:', context);
     console.log('Platform:', platform);
+    console.log('📝 Routing info:', routing);
 
-    // Determine tone from query
-    const tone = this.extractToneFromQuery(query);
+    // Determine tone from query (enhanced with routing info)
+    const tone = routing?.tones?.length > 0 ? routing.tones[0] : this.extractToneFromQuery(query);
+    const outputType = routing?.outputType;
+
+    console.log('🎨 Detected tone:', tone, 'Output type:', outputType);
 
     // Check if writer service exists and is available
     if (!this.writerService || !this.writerService.isAvailable) {
@@ -445,10 +492,16 @@ class TonePilotAIServicesManager {
         const promptService = new window.PromptService();
         let prompt = query;
 
+        // Add output type instructions
+        if (outputType) {
+          const typeInstructions = this.generateOutputTypeInstructions(outputType, tone);
+          prompt = `${typeInstructions}\n\n${query}`;
+        }
+
         // Add platform-specific context
         if (platform) {
           const platformContext = this.generatePlatformContext(platform);
-          prompt = `${platformContext}\n\n${query}`;
+          prompt = `${platformContext}\n\n${prompt}`;
         }
 
         // Add context if provided
@@ -478,9 +531,10 @@ class TonePilotAIServicesManager {
 
     try {
       // Initialize writer service if needed
+      const format = outputType ? this.deriveFormatFromOutputType(outputType) : 'plain-text';
       await this.writerService.initialize({
         tone: tone,
-        format: 'plain-text',
+        format: format,
         length: 'medium',
         platform: platform
       });
@@ -909,6 +963,77 @@ class TonePilotAIServicesManager {
   }
 
   /**
+   * Generate output type specific instructions for AI prompts
+   * @param {string} outputType - Detected output type (email, letter, etc.)
+   * @param {string} tone - Detected tone (formal, casual, etc.)
+   * @returns {string} Instructions for the AI
+   */
+  generateOutputTypeInstructions(outputType, tone = null) {
+    const toneModifier = tone ? ` in a ${tone} tone` : '';
+
+    switch (outputType) {
+      case 'email':
+        return `Write a professional email${toneModifier}. Include a clear subject line, proper greeting, well-structured body, and appropriate closing.`;
+
+      case 'letter':
+        return `Write a formal letter${toneModifier}. Include proper letterhead format, date, recipient address, formal salutation, structured paragraphs, and professional closing.`;
+
+      case 'post':
+        return `Create engaging social media content${toneModifier}. Make it attention-grabbing, shareable, and appropriate for the platform.`;
+
+      case 'document':
+        return `Create a well-structured document${toneModifier}. Use clear headings, organized paragraphs, and professional formatting.`;
+
+      case 'list':
+        return `Create a clear, organized list${toneModifier}. Use bullet points or numbers, keep items concise, and ensure logical order.`;
+
+      case 'script':
+        return `Write a dialogue or script${toneModifier}. Include speaker names, natural conversation flow, and appropriate stage directions if needed.`;
+
+      case 'summary':
+        return `Create a concise summary${toneModifier}. Focus on key points, eliminate unnecessary details, and maintain clarity.`;
+
+      case 'response':
+        return `Write a thoughtful response${toneModifier}. Address the main points, provide relevant information, and maintain appropriate formality.`;
+
+      case 'announcement':
+        return `Create a clear announcement${toneModifier}. Include key details, call-to-action if needed, and ensure important information is prominent.`;
+
+      case 'tutorial':
+        return `Write a step-by-step guide${toneModifier}. Use numbered steps, clear instructions, and include helpful tips or warnings where appropriate.`;
+
+      default:
+        return tone ? `Write content${toneModifier}.` : '';
+    }
+  }
+
+  /**
+   * Derive format from output type for writer service
+   * @param {string} outputType - Detected output type
+   * @returns {string} Format for writer service
+   */
+  deriveFormatFromOutputType(outputType) {
+    switch (outputType) {
+      case 'email':
+        return 'email';
+      case 'letter':
+        return 'formal-letter';
+      case 'post':
+        return 'social-post';
+      case 'document':
+        return 'document';
+      case 'list':
+        return 'bulleted-list';
+      case 'script':
+        return 'dialogue';
+      case 'tutorial':
+        return 'step-by-step';
+      default:
+        return 'plain-text';
+    }
+  }
+
+  /**
    * Check if resume context is relevant for the given query
    * @param {string} query - User query text
    * @returns {boolean} Whether resume context should be included
@@ -987,6 +1112,187 @@ class TonePilotAIServicesManager {
     } catch (error) {
       console.error('Failed to get resume context:', error);
       return null;
+    }
+  }
+
+  /**
+   * Apply reflection to improve the AI output when detail mode is active
+   * @param {Object} result - Original AI result
+   * @param {string} originalText - Original input text
+   * @param {string} userQuery - User's query/instructions
+   * @param {Object} routing - Routing information
+   * @returns {Object} Result with reflection and potentially improved output
+   */
+  async applyReflection(result, originalText, userQuery, routing) {
+    try {
+      console.log('📋 Starting reflection process...');
+
+      // Create reflection prompt
+      const reflectionPrompt = this.createReflectionPrompt(result, originalText, userQuery, routing);
+
+      // Use prompt service to perform reflection
+      const reflectionService = new window.PromptService();
+      const reflectionOutput = await reflectionService.send(reflectionPrompt);
+
+      console.log('🔍 Reflection output:', reflectionOutput);
+
+      // Parse reflection to determine if improvement is needed
+      this.uiManager.updateStepStatus('reflection', 'active', 'improvement-check');
+      const reflection = this.parseReflectionOutput(reflectionOutput);
+
+      // If reflection suggests improvement, generate improved version
+      if (reflection.shouldImprove) {
+        console.log('📈 Reflection suggests improvement, generating enhanced version...');
+        this.uiManager.completeStep('reflection', 'improvement', 'generating-improved');
+        const improvedOutput = await this.generateImprovedOutput(
+          result, originalText, userQuery, routing, reflection.suggestions
+        );
+
+        // Return result with both original and improved versions
+        return {
+          ...result,
+          reflection: reflection.analysis,
+          alt1: improvedOutput,
+          improvedByReflection: true
+        };
+      } else {
+        // Return result with reflection analysis only
+        this.uiManager.updateStepStatus('reflection', 'completed');
+        this.uiManager.updateStepStatus('improvement', 'completed');
+        return {
+          ...result,
+          reflection: reflection.analysis,
+          reflectionScore: reflection.score
+        };
+      }
+
+    } catch (error) {
+      console.error('❌ Reflection process failed:', error);
+      // Return original result if reflection fails
+      return {
+        ...result,
+        reflectionError: error.message
+      };
+    }
+  }
+
+  /**
+   * Create reflection prompt based on the task type and output
+   * @param {Object} result - AI result to reflect on
+   * @param {string} originalText - Original input text
+   * @param {string} userQuery - User's query
+   * @param {Object} routing - Routing information
+   * @returns {string} Reflection prompt
+   */
+  createReflectionPrompt(result, originalText, userQuery, routing) {
+    const taskType = routing.intent || 'general';
+    const output = result.primary;
+
+    const basePrompt = `You are an expert AI output evaluator. Please analyze the following AI-generated output and provide a detailed reflection.
+
+TASK TYPE: ${taskType}
+ORIGINAL TEXT: "${originalText}"
+USER QUERY: "${userQuery}"
+AI OUTPUT: "${output}"
+
+Please evaluate:
+1. Quality and accuracy of the output
+2. How well it addresses the user's request
+3. Clarity and coherence
+4. Appropriateness for the task type
+5. Areas for potential improvement
+
+Provide your analysis in this format:
+ANALYSIS: [Your detailed analysis]
+SCORE: [Rate 1-10, where 10 is excellent]
+IMPROVE: [YES/NO - whether output could be significantly improved]
+SUGGESTIONS: [If IMPROVE is YES, provide specific suggestions for improvement]`;
+
+    return basePrompt;
+  }
+
+  /**
+   * Parse reflection output to extract analysis and improvement suggestions
+   * @param {string} reflectionText - Raw reflection output
+   * @returns {Object} Parsed reflection data
+   */
+  parseReflectionOutput(reflectionText) {
+    try {
+      const lines = reflectionText.split('\n');
+      let analysis = '';
+      let score = 7; // Default score
+      let shouldImprove = false;
+      let suggestions = '';
+
+      let currentSection = '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('ANALYSIS:')) {
+          currentSection = 'analysis';
+          analysis = trimmed.replace('ANALYSIS:', '').trim();
+        } else if (trimmed.startsWith('SCORE:')) {
+          const scoreMatch = trimmed.match(/(\d+)/);
+          if (scoreMatch) {
+            score = parseInt(scoreMatch[1]);
+          }
+        } else if (trimmed.startsWith('IMPROVE:')) {
+          const improveText = trimmed.replace('IMPROVE:', '').trim().toUpperCase();
+          shouldImprove = improveText === 'YES';
+        } else if (trimmed.startsWith('SUGGESTIONS:')) {
+          currentSection = 'suggestions';
+          suggestions = trimmed.replace('SUGGESTIONS:', '').trim();
+        } else if (currentSection === 'analysis' && trimmed) {
+          analysis += ' ' + trimmed;
+        } else if (currentSection === 'suggestions' && trimmed) {
+          suggestions += ' ' + trimmed;
+        }
+      }
+
+      return {
+        analysis: analysis.trim(),
+        score: score,
+        shouldImprove: shouldImprove && score < 8, // Only improve if score is below 8
+        suggestions: suggestions.trim()
+      };
+    } catch (error) {
+      console.error('❌ Failed to parse reflection output:', error);
+      return {
+        analysis: reflectionText,
+        score: 7,
+        shouldImprove: false,
+        suggestions: ''
+      };
+    }
+  }
+
+  /**
+   * Generate improved output based on reflection suggestions
+   * @param {Object} result - Original result
+   * @param {string} originalText - Original input text
+   * @param {string} userQuery - User query
+   * @param {Object} routing - Routing information
+   * @param {string} suggestions - Improvement suggestions from reflection
+   * @returns {string} Improved output
+   */
+  async generateImprovedOutput(result, originalText, userQuery, routing, suggestions) {
+    try {
+      const improvementPrompt = `Based on the reflection analysis, please improve the following output:
+
+ORIGINAL TEXT: "${originalText}"
+USER QUERY: "${userQuery}"
+CURRENT OUTPUT: "${result.primary}"
+IMPROVEMENT SUGGESTIONS: "${suggestions}"
+
+Please provide an improved version that addresses the suggestions while maintaining the core intent and style. Output only the improved text without explanations.`;
+
+      const improvementService = new window.PromptService();
+      const improvedOutput = await improvementService.send(improvementPrompt);
+
+      return improvedOutput.trim();
+    } catch (error) {
+      console.error('❌ Failed to generate improved output:', error);
+      return result.primary; // Return original if improvement fails
     }
   }
 

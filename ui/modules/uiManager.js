@@ -54,7 +54,8 @@ class TonePilotUIManager {
         { element: 'cropBtn', handler: () => this.handleCrop() },
         { element: 'submitBtn', handler: async () => await this.handleSubmit() },
         { element: 'mediaBtn', handler: () => this.handleOpenMedia() },
-        { element: 'translateBtn', handler: () => this.handleToggleTranslate() }
+        { element: 'translateBtn', handler: () => this.handleToggleTranslate() },
+        { element: 'detailBtn', handler: () => this.handleToggleDetail() }
       ];
 
       buttonEvents.forEach(({ element, handler }) => {
@@ -1771,6 +1772,110 @@ class TonePilotUIManager {
     const sizes = ['Bytes', 'KB', 'MB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  }
+
+  /**
+   * Show step indicator when detail mode is active
+   */
+  showStepIndicator() {
+    if (this.elements.stepIndicator) {
+      this.elements.stepIndicator.style.display = 'block';
+      this.resetStepIndicator();
+      console.log('📋 Step indicator shown');
+    }
+  }
+
+  /**
+   * Hide step indicator
+   */
+  hideStepIndicator() {
+    if (this.elements.stepIndicator) {
+      this.elements.stepIndicator.style.display = 'none';
+      console.log('📋 Step indicator hidden');
+    }
+  }
+
+  /**
+   * Reset all steps to pending state
+   */
+  resetStepIndicator() {
+    if (!this.elements.stepIndicator) return;
+
+    const steps = this.elements.stepIndicator.querySelectorAll('.step-item');
+    steps.forEach(step => {
+      step.setAttribute('data-status', 'pending');
+    });
+
+    const substeps = this.elements.stepIndicator.querySelectorAll('.substep');
+    substeps.forEach(substep => {
+      substep.removeAttribute('data-active');
+    });
+
+    console.log('📋 Step indicator reset');
+  }
+
+  /**
+   * Update step status
+   * @param {string} stepId - Step identifier (routing, processing, reflection, improvement)
+   * @param {string} status - Status (pending, active, completed)
+   * @param {string} activeSubstep - Optional active substep identifier
+   */
+  updateStepStatus(stepId, status, activeSubstep = null) {
+    if (!this.elements.stepIndicator) return;
+
+    const stepElement = this.elements.stepIndicator.querySelector(`[data-step="${stepId}"]`);
+    if (!stepElement) {
+      console.warn(`⚠️ Step element not found: ${stepId}`);
+      return;
+    }
+
+    stepElement.setAttribute('data-status', status);
+
+    // Clear all active substeps in this step first
+    const substeps = stepElement.querySelectorAll('.substep');
+    substeps.forEach(substep => {
+      substep.removeAttribute('data-active');
+    });
+
+    // Set active substep if provided
+    if (activeSubstep && status === 'active') {
+      const activeSubstepElement = stepElement.querySelector(`[data-substep="${activeSubstep}"]`);
+      if (activeSubstepElement) {
+        activeSubstepElement.setAttribute('data-active', 'true');
+      }
+    }
+
+    console.log(`📋 Step ${stepId} updated to ${status}${activeSubstep ? ` (substep: ${activeSubstep})` : ''}`);
+  }
+
+  /**
+   * Complete a step and move to the next one
+   * @param {string} currentStepId - Current step to complete
+   * @param {string} nextStepId - Next step to activate (optional)
+   * @param {string} nextSubstep - Next substep to activate (optional)
+   */
+  completeStep(currentStepId, nextStepId = null, nextSubstep = null) {
+    this.updateStepStatus(currentStepId, 'completed');
+
+    if (nextStepId) {
+      this.updateStepStatus(nextStepId, 'active', nextSubstep);
+    }
+
+    console.log(`📋 Step ${currentStepId} completed${nextStepId ? `, activated ${nextStepId}` : ''}`);
+  }
+
+  /**
+   * Complete all steps (called when processing is done)
+   */
+  completeAllSteps() {
+    if (!this.elements.stepIndicator) return;
+
+    const steps = this.elements.stepIndicator.querySelectorAll('.step-item');
+    steps.forEach(step => {
+      step.setAttribute('data-status', 'completed');
+    });
+
+    console.log('📋 All steps completed');
   }
 }
 

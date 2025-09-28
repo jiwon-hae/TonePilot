@@ -236,11 +236,35 @@ class TonePilotPanel {
       this.updateWebsiteInfo();
       this.checkForCurrentSelection();
       await this.loadPageMedia();
+
+      // Set up state listeners
+      this.setupStateListeners();
+
       console.log('✅ UI components initialized');
     } catch (error) {
       console.error('UI component initialization failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * Set up state change listeners
+   */
+  setupStateListeners() {
+    // Listen for detail mode changes to show/hide step indicator
+    this.stateManager.addListener('detailMode', (detailMode) => {
+      console.log('📋 Detail mode state changed:', detailMode);
+      if (detailMode) {
+        // Detail mode enabled - step indicator will be shown when processing starts
+        console.log('📋 Detail mode enabled, step indicator will show during processing');
+      } else {
+        // Detail mode disabled - hide step indicator
+        this.uiManager.hideStepIndicator();
+        console.log('📋 Detail mode disabled, step indicator hidden');
+      }
+    });
+
+    console.log('✅ State listeners set up');
   }
 
   /**
@@ -309,6 +333,7 @@ class TonePilotPanel {
     this.uiManager.handleOpenMedia = () => this.handleOpenMedia();
     this.uiManager.handleCloseMedia = () => this.handleCloseMedia();
     this.uiManager.handleToggleTranslate = () => this.handleToggleTranslate();
+    this.uiManager.handleToggleDetail = () => this.handleToggleDetail();
   }
 
   /**
@@ -431,6 +456,22 @@ class TonePilotPanel {
     this.stateManager.setTranslateMode(!isActive);
 
     console.log(`🌐 Translate mode ${!isActive ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Handle detail button toggle
+   */
+  handleToggleDetail() {
+    const detailBtn = this.uiManager.elements.detailBtn;
+    const isActive = detailBtn.dataset.active === 'true';
+
+    // Toggle the active state
+    detailBtn.dataset.active = !isActive ? 'true' : 'false';
+
+    // Update state manager
+    this.stateManager.setDetailMode(!isActive);
+
+    console.log(`📋 Detail mode ${!isActive ? 'enabled' : 'disabled'}`);
   }
 
   /**
