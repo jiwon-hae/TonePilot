@@ -35,7 +35,6 @@ const TONEPILOT_CONSTANTS = {
       'textInputWrapper', 'mediaGrid',
       'mediaCount', 'selectMediaBtn', 'selectedMediaDisplay', 'selectedMediaGrid',
       'clearBtn', 'translateBtn', 'detailBtn', 'settingsBtn', 'settingsPopup', 'closeSettingsBtn', 'saveSettingsBtn',
-      'stepIndicator',
       'maxCharactersInput', 'formalityTogglePopup', 'targetLanguageSelect', 'cropBtn', 'submitBtn',
       'mediaBtn', 'mediaPopup', 'closeMediaBtn',
       'documentBtn', 'documentPopup', 'closeDocumentBtn', 'saveDocumentBtn',
