@@ -942,59 +942,97 @@
 /* === STEP INDICATOR === */
 .step-indicator {
   margin: 16px 0;
-  padding: 16px;
+  padding: 20px 16px;
   background: var(--secondary-bg);
   border: 1px solid var(--border-primary);
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .step-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  padding-left: 0;
+  position: relative;
+  list-style: none;
+  margin: 0;
+}
+
+.step-list::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 24px;
+  bottom: 0;
+  width: 3px;
+  background: var(--border-primary);
+  z-index: 0;
 }
 
 .step-item {
+  position: relative;
+  margin-bottom: 0;
+  padding: 8px 0;
+  transition: all 0.2s ease;
+  list-style: none;
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  transition: all 0.2s ease;
 }
 
-.step-bullet {
-  width: 8px;
-  height: 8px;
+.step-item::before {
+  content: attr(data-step-number);
+  position: relative;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  margin-top: 6px;
-  flex-shrink: 0;
+  border: 2px solid var(--border-primary);
+  background: var(--secondary-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-muted);
   transition: all 0.2s ease;
+  flex-shrink: 0;
+  z-index: 1;
 }
 
 /* Step status colors */
-.step-item[data-status="pending"] .step-bullet {
-  background: var(--text-muted);
-  opacity: 0.5;
+.step-item[data-status="pending"]::before {
+  background: var(--secondary-bg);
+  border-color: #9ca3af;
+  color: #9ca3af;
 }
 
-.step-item[data-status="active"] .step-bullet {
-  background: var(--accent-primary);
+.step-item[data-status="active"]::before {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
   animation: pulse 2s infinite;
 }
 
-.step-item[data-status="completed"] .step-bullet {
-  background: var(--success-primary);
+.step-item[data-status="completed"]::before {
+  background: #10b981;
+  border-color: #10b981;
+  color: white;
+  content: "✓";
 }
 
-.step-content {
-  flex: 1;
-  min-width: 0;
-}
 
 .step-title {
-  font-weight: 500;
-  margin-bottom: 8px;
+  font-weight: 600;
+  margin-bottom: 0;
+  font-size: 15px;
   transition: color 0.2s ease;
+}
+
+.step-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-bottom: 0;
 }
 
 /* Step title colors */
@@ -1007,7 +1045,7 @@
 }
 
 .step-item[data-status="completed"] .step-title {
-  color: var(--text-muted);
+  color: var(--text-primary);
 }
 
 .step-substeps {

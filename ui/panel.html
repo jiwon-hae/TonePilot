@@ -56,70 +56,12 @@
           <div class="query-text"></div>
         </div>
         <div class="result-tabs">
-          <button class="result-tab active" data-tab="primary">Primary</button>
-          <button class="result-tab" data-tab="alt1">Alternative 1</button>
+          <button class="result-tab active" data-tab="primary">Assistant</button>
+          <button class="result-tab" data-tab="alt1">
+            <img src="../icons/branch.png" alt="Branch" style="width:10px; height:10px;" />
+            <span>Steps</span>
+          </button>
           <button class="result-tab" data-tab="alt2">Alternative 2</button>
-        </div>
-
-        <!-- Step Indicator (shown in detail mode) -->
-        <div id="stepIndicator" class="step-indicator" style="display: none;">
-          <div class="step-list">
-            <div class="step-item" data-step="routing" data-status="pending">
-              <div class="step-bullet"></div>
-              <div class="step-content">
-                <div class="step-title">Analyzing your request</div>
-                <div class="step-substeps">
-                  <div class="substep" data-substep="semantic-routing">
-                    <span class="substep-icon">🎯</span>
-                    <span class="substep-text">Determining intent and routing</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="step-item" data-step="processing" data-status="pending">
-              <div class="step-bullet"></div>
-              <div class="step-content">
-                <div class="step-title">Generating AI output</div>
-                <div class="step-substeps">
-                  <div class="substep" data-substep="ai-service">
-                    <span class="substep-icon">⚙️</span>
-                    <span class="substep-text">Running AI service</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="step-item" data-step="reflection" data-status="pending">
-              <div class="step-bullet"></div>
-              <div class="step-content">
-                <div class="step-title">Reflecting on output quality</div>
-                <div class="step-substeps">
-                  <div class="substep" data-substep="quality-analysis">
-                    <span class="substep-icon">🔍</span>
-                    <span class="substep-text">Analyzing quality and accuracy</span>
-                  </div>
-                  <div class="substep" data-substep="improvement-check">
-                    <span class="substep-icon">📊</span>
-                    <span class="substep-text">Evaluating improvement opportunities</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="step-item" data-step="improvement" data-status="pending">
-              <div class="step-bullet"></div>
-              <div class="step-content">
-                <div class="step-title">Enhancing output</div>
-                <div class="step-substeps">
-                  <div class="substep" data-substep="generating-improved">
-                    <span class="substep-icon">✨</span>
-                    <span class="substep-text">Generating improved version</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div id="resultContent" class="result-content"></div>

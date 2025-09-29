@@ -776,3 +776,68 @@ textarea {
 .saveDocumentBtn:hover {
   opacity: 0.85;
 }
+
+.step-indicator {
+  padding: 10px;
+  font-family: Arial, sans-serif;
+  color: #ddd;
+  background: #111;
+}
+
+.step-list {
+  position: relative;
+  border-left: 2px solid #444;
+  padding-left: 30px;
+}
+
+.step-item {
+  position: relative;
+  display: flex;
+}
+
+.step-bullet {
+  position: absolute;
+  left: -8px;
+  top: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #444;
+  border: 2px solid #888;
+}
+
+.step-item[data-status="active"] .step-bullet {
+  background: var(--icons);
+}
+
+.step-content {
+  margin-left: 15px;
+}
+
+.step-title {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.step-substeps {
+  margin-left: 10px;
+}
+
+.substep {
+  font-size: 13px;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.substep[data-active="true"] {
+  color: #fff;
+}
+
+.substep-icon {
+  background: #222;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 12px;
+}

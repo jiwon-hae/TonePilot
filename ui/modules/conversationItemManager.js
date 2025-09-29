@@ -77,8 +77,11 @@ class TonePilotConversationItemManager {
     resultSection.style.display = 'block';
     resultSection.innerHTML = `
       <div class="result-tabs">
-        <button class="result-tab active" data-tab="primary">Primary</button>
-        <button class="result-tab" data-tab="alt1" style="display: none;">Alternative 1</button>
+        <button class="result-tab active" data-tab="primary">Assistant</button>
+        <button class="result-tab" data-tab="alt1" style="display: none;">
+            <img src="../icons/branch.png" alt="Branch" style="width:10px; height:10px;" />
+            <span>Steps</span>
+        </button>
         <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
       </div>
       <div class="loading-area"></div>

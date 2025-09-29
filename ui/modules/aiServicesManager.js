@@ -145,11 +145,27 @@ class TonePilotAIServicesManager {
     try {
       this.uiManager.hideError();
 
-      // Check if detail mode is active - show step indicator if so
+      // Check if detail mode is active - set up step tracking if so
       const detailMode = this.stateManager.getDetailMode();
       if (detailMode) {
-        this.uiManager.showStepIndicator();
-        this.uiManager.updateStepStatus('routing', 'active', 'semantic-routing');
+        // Initialize step tracking in the result object that will be used for Alternative 1 tab
+        this.currentStepTracker = {
+          steps: [
+            { id: 'routing', title: 'Analyzing your request', status: 'active', substeps: [
+              { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing', active: true }
+            ]},
+            { id: 'processing', title: 'Generating AI output', status: 'pending', substeps: [
+              { id: 'ai-service', icon: '⚙️', text: 'Running AI service', active: false }
+            ]},
+            { id: 'reflection', title: 'Reflecting on output quality', status: 'pending', substeps: [
+              { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy', active: false },
+              { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities', active: false }
+            ]},
+            { id: 'improvement', title: 'Enhancing output', status: 'pending', substeps: [
+              { id: 'generating-improved', icon: '✨', text: 'Generating improved version', active: false }
+            ]}
+          ]
+        };
       }
 
       // Check if translate mode is active
@@ -172,9 +188,14 @@ class TonePilotAIServicesManager {
       const routing = await this.semanticRouter.route(inputText);
       console.log('🎯 Routing result:', routing);
 
-      // Update step indicator - routing completed, start processing
+      // Update step indicator in real-time - routing completed, start processing
       if (detailMode) {
-        this.uiManager.completeStep('routing', 'processing', 'ai-service');
+        try {
+          this.uiManager.updateDetailModeStepIndicator('routing', 'completed');
+          this.uiManager.updateDetailModeStepIndicator('processing', 'active', 'ai-service');
+        } catch (error) {
+          console.error('❌ Error updating step indicator:', error);
+        }
       }
 
       // Process based on intent
@@ -208,9 +229,9 @@ class TonePilotAIServicesManager {
           break;
       }
 
-      // Update step indicator - processing completed
+      // Update step indicator in real-time - processing completed
       if (detailMode) {
-        this.uiManager.updateStepStatus('processing', 'completed');
+        this.uiManager.updateDetailModeStepIndicator('processing', 'completed');
       }
 
       // Apply translation if translate mode is active (but skip if intent was already translate)
@@ -243,20 +264,21 @@ class TonePilotAIServicesManager {
 
       if (detailMode && result?.primary) {
         console.log('📋 Detail mode active, applying reflection...');
-        this.uiManager.updateStepStatus('reflection', 'active', 'quality-analysis');
+        this.uiManager.updateDetailModeStepIndicator('reflection', 'active', 'quality-analysis');
         result = await this.applyReflection(result, textToProcess, inputText, routing);
         console.log('✅ Reflection completed, result:', result);
 
         // Complete all steps
-        this.uiManager.completeAllSteps();
+        this.uiManager.updateDetailModeStepIndicator('reflection', 'completed');
+        this.uiManager.updateDetailModeStepIndicator('improvement', 'completed');
       } else if (detailMode) {
         // If detail mode but no reflection needed, complete remaining steps
-        this.uiManager.updateStepStatus('reflection', 'completed');
-        this.uiManager.updateStepStatus('improvement', 'completed');
+        this.uiManager.updateDetailModeStepIndicator('reflection', 'completed');
+        this.uiManager.updateDetailModeStepIndicator('improvement', 'completed');
       }
 
-      // Loading will be replaced by showResults, no need to explicitly hide
-      return {
+      // Add step tracker to result if detail mode is active
+      const finalResult = {
         ...result,
         intent: routing.intent,
         outputType: routing.outputType,
@@ -264,6 +286,25 @@ class TonePilotAIServicesManager {
         via: routing.via,
         score: routing.score
       };
+
+      if (detailMode && this.currentStepTracker) {
+        // Don't set alt1 here - let uiManager handle step indicators progressively
+        finalResult.detailModeSteps = true;
+        console.log('📋 Detail mode result created - uiManager will handle step indicators:', {
+          detailModeSteps: finalResult.detailModeSteps,
+          note: 'Step indicators managed by uiManager progressively'
+        });
+      }
+
+      console.log('🎯 Final result object:', {
+        hasAlt1: !!finalResult.alt1,
+        hasAlt2: !!finalResult.alt2,
+        detailMode: detailMode,
+        keys: Object.keys(finalResult)
+      });
+
+      // Loading will be replaced by showResults, no need to explicitly hide
+      return finalResult;
 
     } catch (error) {
       // Stop loading animation and show error in the result content area
@@ -1116,6 +1157,52 @@ class TonePilotAIServicesManager {
   }
 
   /**
+   * Update step tracker for detail mode
+   * @param {string} stepId - Step identifier
+   * @param {string} status - New status (pending, active, completed)
+   * @param {string} activeSubstep - Optional substep to activate
+   */
+  updateStepTracker(stepId, status, activeSubstep = null) {
+    if (!this.currentStepTracker) return;
+
+    const step = this.currentStepTracker.steps.find(s => s.id === stepId);
+    if (!step) return;
+
+    step.status = status;
+
+    // Clear all active substeps
+    step.substeps.forEach(substep => substep.active = false);
+
+    // Set active substep if provided
+    if (activeSubstep && status === 'active') {
+      const substep = step.substeps.find(s => s.id === activeSubstep);
+      if (substep) substep.active = true;
+    }
+
+    console.log(`📋 Step tracker updated: ${stepId} -> ${status}${activeSubstep ? ` (${activeSubstep})` : ''}`);
+  }
+
+  /**
+   * Generate step indicator HTML from current step tracker
+   * @returns {string} HTML for step indicator
+   */
+  generateStepIndicatorHTML() {
+    if (!this.currentStepTracker) return '';
+
+    const stepsHTML = this.currentStepTracker.steps.map((step, index) => {
+      const substepsHTML = step.substeps.map(substep => `<div class="substep" ${substep.active ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`).join('');
+
+      // Generate step subtitle based on substeps count
+      const substepCount = step.substeps.length;
+      const stepSubtitle = substepCount > 0 ? `${substepCount} ${substepCount === 1 ? 'step' : 'steps'}` : '';
+
+      return `<li class="step-item" data-step="${step.id}" data-status="${step.status}" data-step-number="${index + 1}"><div class="step-content"><div class="step-title">${step.title}</div>${stepSubtitle ? `<div class="step-subtitle">${stepSubtitle}</div>` : ''}<div class="step-substeps">${substepsHTML}</div></div></li>`;
+    }).join('');
+
+    return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;
+  }
+
+  /**
    * Apply reflection to improve the AI output when detail mode is active
    * @param {Object} result - Original AI result
    * @param {string} originalText - Original input text
@@ -1137,13 +1224,21 @@ class TonePilotAIServicesManager {
       console.log('🔍 Reflection output:', reflectionOutput);
 
       // Parse reflection to determine if improvement is needed
-      this.uiManager.updateStepStatus('reflection', 'active', 'improvement-check');
+      this.uiManager.updateDetailModeStepIndicator('reflection', 'active', 'improvement-check');
       const reflection = this.parseReflectionOutput(reflectionOutput);
+
+      console.log('🔍 Reflection parsed:', {
+        score: reflection.score,
+        shouldImprove: reflection.shouldImprove,
+        analysis: reflection.analysis.substring(0, 100) + '...',
+        suggestions: reflection.suggestions.substring(0, 100) + '...'
+      });
 
       // If reflection suggests improvement, generate improved version
       if (reflection.shouldImprove) {
         console.log('📈 Reflection suggests improvement, generating enhanced version...');
-        this.uiManager.completeStep('reflection', 'improvement', 'generating-improved');
+        this.uiManager.updateDetailModeStepIndicator('reflection', 'completed');
+        this.uiManager.updateDetailModeStepIndicator('improvement', 'active', 'generating-improved');
         const improvedOutput = await this.generateImprovedOutput(
           result, originalText, userQuery, routing, reflection.suggestions
         );
@@ -1157,8 +1252,6 @@ class TonePilotAIServicesManager {
         };
       } else {
         // Return result with reflection analysis only
-        this.uiManager.updateStepStatus('reflection', 'completed');
-        this.uiManager.updateStepStatus('improvement', 'completed');
         return {
           ...result,
           reflection: reflection.analysis,
@@ -1188,7 +1281,7 @@ class TonePilotAIServicesManager {
     const taskType = routing.intent || 'general';
     const output = result.primary;
 
-    const basePrompt = `You are an expert AI output evaluator. Please analyze the following AI-generated output and provide a detailed reflection.
+    const basePrompt = `You are an expert AI output evaluator. Please analyze the following AI-generated output and provide a detailed reflection. Be thorough and look for ways to enhance the output.
 
 TASK TYPE: ${taskType}
 ORIGINAL TEXT: "${originalText}"
@@ -1202,11 +1295,18 @@ Please evaluate:
 4. Appropriateness for the task type
 5. Areas for potential improvement
 
+Look for opportunities to:
+- Enhance clarity and precision
+- Add missing context or details
+- Improve structure and flow
+- Better match the user's intent
+- Strengthen the overall impact
+
 Provide your analysis in this format:
 ANALYSIS: [Your detailed analysis]
 SCORE: [Rate 1-10, where 10 is excellent]
-IMPROVE: [YES/NO - whether output could be significantly improved]
-SUGGESTIONS: [If IMPROVE is YES, provide specific suggestions for improvement]`;
+IMPROVE: [YES/NO - whether output could be significantly improved. Default to YES unless the output is truly exceptional]
+SUGGESTIONS: [Provide specific suggestions for improvement]`;
 
     return basePrompt;
   }
@@ -1252,7 +1352,7 @@ SUGGESTIONS: [If IMPROVE is YES, provide specific suggestions for improvement]`;
       return {
         analysis: analysis.trim(),
         score: score,
-        shouldImprove: shouldImprove && score < 8, // Only improve if score is below 8
+        shouldImprove: shouldImprove || score < 8, // Improve if AI suggests it OR score is below 8
         suggestions: suggestions.trim()
       };
     } catch (error) {

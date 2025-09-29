@@ -298,9 +298,10 @@ class TonePilotUIManager {
   /**
    * Create new conversation container and prepare for processing
    * @param {string} inputText - Original input text
+   * @param {boolean} detailMode - Whether detail mode is active
    * @returns {Object} Reference to the new conversation container elements
    */
-  createNewConversation(inputText) {
+  createNewConversation(inputText, detailMode = false) {
     console.log('🎯 createNewConversation called with:', inputText);
 
     // Ensure inputText is a string
@@ -335,8 +336,14 @@ class TonePilotUIManager {
     this.resizePreviousConversationsToContent();
 
     // Create new container with query and tabs at the bottom
-    const newContainer = this.createConversationContainer(safeInputText);
+    const newContainer = this.createConversationContainer(safeInputText, detailMode);
     console.log('📦 createConversationContainer returned:', newContainer);
+
+    // If detail mode is active, set up the Alternative 1 tab immediately
+    if (detailMode) {
+      console.log('📋 Detail mode active - setting up Alternative 1 tab immediately');
+      this.showDetailModeTab(newContainer);
+    }
 
     // Animate to show the new container with smooth transitions
     console.log('🎬 About to call animateToNewContainer');
@@ -378,9 +385,10 @@ class TonePilotUIManager {
   /**
    * Create a new conversation container with query and result structure
    * @param {string} inputText - User's input text
+   * @param {boolean} detailMode - Whether detail mode is active
    * @returns {Object} Container elements
    */
-  createConversationContainer(inputText) {
+  createConversationContainer(inputText, detailMode = false) {
     // Create main container (let it size naturally, we'll control the result content height)
     const containerDiv = document.createElement('div');
     containerDiv.className = 'conversation-container conversation-container-loading';
@@ -397,12 +405,14 @@ class TonePilotUIManager {
     resultSection.style.display = 'block';
     resultSection.innerHTML = `
       <div class="result-tabs">
-        <button class="result-tab active" data-tab="primary">Primary</button>
-        <button class="result-tab" data-tab="alt1" style="display: none;">Alternative 1</button>
+        <button class="result-tab active" data-tab="primary">Assistant</button>
+        <button class="result-tab" data-tab="alt1" style="display: none;">
+            <img src="../icons/branch.png" alt="Branch" style="width:10px; height:10px;" />
+            <span>Steps</span>
+        </button>
         <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
       </div>
-      <div class="loading-area"></div>
-      <div class="result-content" style="display: none;"></div>
+      <div class="result-content"></div>
       <div class="result-actions" style="display: none;">
         <button class="btn btn-secondary">
           <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
@@ -410,8 +420,7 @@ class TonePilotUIManager {
       </div>
     `;
 
-    // Get elements for loading animation and results
-    const loadingArea = resultSection.querySelector('.loading-area');
+    // Get result content element - loading will be managed inside this div
     const resultContent = resultSection.querySelector('.result-content');
 
     // Assemble container
@@ -517,22 +526,37 @@ class TonePilotUIManager {
       });
     });
 
-    // Start loading animation in this new container
-    console.log('🎬 Starting loading animation in:', loadingArea);
-    this.startLoadingInContainer(loadingArea);
+    // Start loading animation in result content (Primary tab content by default)
+    console.log('🎬 Starting loading animation in result content');
+    this.startLoadingInContainer(resultContent);
+
+    // In detail mode, the Alternative 1 tab will be activated and show step indicators instead
+    if (detailMode) {
+      console.log('📋 Detail mode active - loading will be replaced by step indicators when Alternative 1 tab activates');
+    }
 
     // Handle filler logic based on panel state
     requestAnimationFrame(() => {
       this.handleFillerForNewItem(containerDiv);
     });
 
-    return {
+    // Initialize results object for tab switching
+    const conversationContainer = {
       container: containerDiv,
       queryDisplay,
       resultSection,
-      loadingArea,
-      resultContent
+      resultContent,
+      results: {
+        primary: null,
+        alt1: null,
+        alt2: null
+      }
     };
+
+    // Also add results to the DOM element for tab switching access
+    containerDiv.results = conversationContainer.results;
+
+    return conversationContainer;
   }
 
   /**
@@ -564,6 +588,12 @@ class TonePilotUIManager {
     // Set initial message
     contentElement.innerHTML = `<div class="loading-message">${loadingMessages[0]}</div>`;
     console.log('🎬 Set initial loading message:', loadingMessages[0]);
+
+    // Clear any existing loading interval first
+    if (this.loadingInterval) {
+      clearInterval(this.loadingInterval);
+      console.log('🛑 Cleared existing loading interval before starting new one');
+    }
 
     // Start cycling through messages
     this.loadingInterval = setInterval(() => {
@@ -628,6 +658,14 @@ class TonePilotUIManager {
       strategy: 'Disable scrolling completely during content changes'
     });
 
+    // Get detail mode status first (needed throughout the method)
+    let detailMode = false;
+    try {
+      detailMode = this.stateManager?.getDetailMode();
+    } catch (error) {
+      console.warn('⚠️ Error getting detail mode:', error);
+    }
+
     // Stop the loading animation
     this.stopLoadingAnimation();
 
@@ -646,23 +684,29 @@ class TonePilotUIManager {
       console.log('🎯 Switched to natural block layout to prevent query/tabs from moving upward');
     }
 
-    // Hide loading area and show results
-    if (conversationContainer && conversationContainer.loadingArea) {
-      conversationContainer.loadingArea.style.display = 'none';
-    } else {
-      console.warn('⚠️ loadingArea not found in conversationContainer:', conversationContainer);
-    }
+    // Loading is now managed inside result content, no separate loading area to hide
 
     // Show alternative tabs based on available data
     if (conversationContainer && conversationContainer.resultSection) {
-      // Show Alternative 1 tab if data exists
-      if (results.alt1) {
+      console.log('🔍 Tab visibility check:', {
+        hasAlt1: !!results.alt1,
+        hasAlt2: !!results.alt2,
+        alt1Content: results.alt1 ? results.alt1.substring(0, 100) + '...' : 'none',
+        resultKeys: Object.keys(results)
+      });
+
+      // Show Alternative 1 tab if data exists OR if detail mode is active
+
+      if (results.alt1 || (detailMode && this.currentDetailContainer === conversationContainer)) {
         const alt1Tab = conversationContainer.resultSection.querySelector('[data-tab="alt1"]');
         if (alt1Tab) {
           alt1Tab.style.display = 'block';
+          console.log('✅ Alternative 1 tab made visible');
         } else {
           console.warn('⚠️ alt1Tab not found');
         }
+      } else {
+        console.log('⚠️ No alt1 content found in results and not in detail mode');
       }
 
       // Show Alternative 2 tab if data exists
@@ -676,17 +720,66 @@ class TonePilotUIManager {
       }
     }
 
-    // Update the result content in the specific container
-    if (conversationContainer && conversationContainer.resultContent) {
-      conversationContainer.resultContent.textContent = results.primary;
-      conversationContainer.resultContent.style.display = 'block';
-      // Use natural content flow - no flex, no fixed heights
-      conversationContainer.resultContent.style.height = 'auto';
-      conversationContainer.resultContent.style.minHeight = 'auto';
-      conversationContainer.resultContent.style.flex = 'none';
-      // Ensure content grows downward from the tabs, not upward
-      conversationContainer.resultContent.style.position = 'relative';
-      conversationContainer.resultContent.style.top = '0';
+    // Store all content types in the conversation container for tab switching
+    if (conversationContainer) {
+      // Preserve existing results if they exist (especially step indicators in alt1)
+      const existingResults = conversationContainer.results || {};
+
+      // Determine alt1 content with detailed debugging
+      let alt1Content = null;
+      if (detailMode && this.currentDetailContainer === conversationContainer) {
+        alt1Content = this.currentStepIndicatorHTML || existingResults.alt1;
+        console.log('📋 Detail mode alt1 content decision:', {
+          hasCurrentStepHTML: !!this.currentStepIndicatorHTML,
+          hasExistingAlt1: !!existingResults.alt1,
+          currentStepHTMLLength: this.currentStepIndicatorHTML ? this.currentStepIndicatorHTML.length : 0,
+          existingAlt1Length: existingResults.alt1 ? existingResults.alt1.length : 0,
+          selectedContent: alt1Content ? 'step indicators' : 'none',
+          isCurrentDetailContainer: this.currentDetailContainer === conversationContainer
+        });
+      } else {
+        alt1Content = results.alt1;
+        console.log('📋 Normal mode alt1 content:', { hasResultsAlt1: !!results.alt1 });
+      }
+
+      conversationContainer.results = {
+        primary: results.primary,
+        alt1: alt1Content,
+        alt2: results.alt2
+      };
+
+      console.log('📋 Stored results in conversation container:', {
+        hasPrimary: !!conversationContainer.results.primary,
+        hasAlt1: !!conversationContainer.results.alt1,
+        hasAlt2: !!conversationContainer.results.alt2,
+        isDetailMode: detailMode,
+        alt1Content: detailMode ? 'step indicators' : 'ai output',
+        preservedExisting: !!existingResults.alt1
+      });
+    }
+
+    // Switch to Primary tab and update content - but preserve Alternative 1 tab content in detail mode
+    if (conversationContainer && conversationContainer.resultContent && conversationContainer.resultSection) {
+      const primaryTab = conversationContainer.resultSection.querySelector('[data-tab="primary"]');
+
+      if (primaryTab) {
+        // Make Primary tab active
+        conversationContainer.resultSection.querySelectorAll('.result-tab').forEach(t => t.classList.remove('active'));
+        primaryTab.classList.add('active');
+
+        // Update result content with AI-generated text for Primary tab
+        conversationContainer.resultContent.textContent = results.primary;
+        conversationContainer.resultContent.style.display = 'block';
+        // Use natural content flow - no flex, no fixed heights
+        conversationContainer.resultContent.style.height = 'auto';
+        conversationContainer.resultContent.style.minHeight = 'auto';
+        conversationContainer.resultContent.style.flex = 'none';
+        // Ensure content grows downward from the tabs, not upward
+        conversationContainer.resultContent.style.position = 'relative';
+        conversationContainer.resultContent.style.top = '0';
+
+        console.log('📑 Results ready: switched to Primary tab with AI results');
+      }
     } else {
       console.warn('showResults called with invalid conversationContainer');
     }
@@ -1351,8 +1444,11 @@ class TonePilotUIManager {
       resultSection.style.display = 'block';
       resultSection.innerHTML = `
         <div class="result-tabs">
-          <button class="result-tab active" data-tab="primary">Primary</button>
-          <button class="result-tab" data-tab="alt1">Alternative 1</button>
+          <button class="result-tab active" data-tab="primary">Assistant</button>
+          <button class="result-tab" data-tab="alt1">
+            <img src="../icons/branch.png" alt="Branch" style="width:10px; height:10px;" />
+            <span>Steps</span>
+          </button>
           <button class="result-tab" data-tab="alt2">Alternative 2</button>
         </div>
         <div class="result-content">${previousResult.result}</div>
@@ -1772,6 +1868,324 @@ class TonePilotUIManager {
     const sizes = ['Bytes', 'KB', 'MB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  }
+
+  /**
+   * Show detail mode tab immediately upon submit
+   * @param {Object} conversationContainer - The conversation container
+   */
+  showDetailModeTab(conversationContainer) {
+    if (!conversationContainer || !conversationContainer.resultSection) {
+      console.warn('⚠️ Cannot show detail mode tab - no result section');
+      return;
+    }
+
+    // Show Alternative 1 tab immediately
+    const alt1Tab = conversationContainer.resultSection.querySelector('[data-tab="alt1"]');
+    if (alt1Tab) {
+      alt1Tab.style.display = 'block';
+      console.log('✅ Alternative 1 tab made visible immediately');
+    } else {
+      console.warn('⚠️ alt1Tab not found in conversation container');
+    }
+
+    // Reset progressive steps for new conversation
+    this.progressiveSteps = [];
+
+    // Initialize step indicator HTML in the Alternative 1 tab content area
+    const initialStepHTML = this.generateInitialStepIndicatorHTML();
+
+    // Store this in the conversation container for immediate access
+    if (!conversationContainer.results) {
+      conversationContainer.results = {};
+    }
+    conversationContainer.results.alt1 = initialStepHTML;
+
+    // We'll need to store this for real-time updates
+    this.currentDetailContainer = conversationContainer;
+    this.currentStepIndicatorHTML = initialStepHTML;
+
+    // Immediately switch to Alternative 1 tab and show the step indicators
+    if (alt1Tab) {
+      // Make Alternative 1 tab active
+      conversationContainer.resultSection.querySelectorAll('.result-tab').forEach(t => t.classList.remove('active'));
+      alt1Tab.classList.add('active');
+
+      // Show step indicators immediately in result content
+      const resultContent = conversationContainer.resultSection.querySelector('.result-content');
+
+      if (resultContent) {
+        // Replace loading content with step indicators in result content
+        resultContent.innerHTML = initialStepHTML;
+        resultContent.style.display = 'block';
+        resultContent.style.visibility = 'visible';
+
+        // Mark this container as having detail mode active so tab switching knows to handle it differently
+        conversationContainer._detailModeActive = true;
+
+        console.log('📋 Alternative 1 tab activated with step indicators in result content, replaced loading');
+      }
+    }
+
+    console.log('📋 Detail mode tab initialized with step indicator content stored and displayed');
+  }
+
+  /**
+   * Generate initial step indicator HTML
+   * @returns {string} Initial step indicator HTML
+   */
+  generateInitialStepIndicatorHTML() {
+    return `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active" data-step-number="1"><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-subtitle">1 step</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><span class="substep-text">Determining intent and routing</span></div></div></div></li></ul></div>`;
+  }
+
+  /**
+   * Update step indicator in real-time during processing
+   * @param {string} stepId - Step identifier
+   * @param {string} status - Status (pending, active, completed)
+   * @param {string} activeSubstep - Optional active substep
+   */
+  updateDetailModeStepIndicator(stepId, status, activeSubstep = null) {
+    if (!this.currentDetailContainer) {
+      console.warn('⚠️ No detail container available for step update');
+      return;
+    }
+
+    console.log('🔍 Debug currentDetailContainer:', {
+      type: typeof this.currentDetailContainer,
+      hasContainer: !!this.currentDetailContainer.container,
+      hasResultSection: !!this.currentDetailContainer.resultSection,
+      hasResults: !!this.currentDetailContainer.results,
+      containerKeys: Object.keys(this.currentDetailContainer)
+    });
+
+    // Initialize step tracking if it doesn't exist
+    if (!this.progressiveSteps) {
+      this.progressiveSteps = [];
+    }
+
+    // Ensure results property exists
+    if (!this.currentDetailContainer.results) {
+      this.currentDetailContainer.results = {};
+    }
+
+    // Add or update the step in progressive tracking
+    this.addOrUpdateProgressiveStep(stepId, status, activeSubstep);
+
+    // Generate HTML showing only revealed steps
+    const stepIndicatorHTML = this.generateProgressiveStepHTML();
+    this.currentDetailContainer.results.alt1 = stepIndicatorHTML;
+    this.currentStepIndicatorHTML = stepIndicatorHTML;
+
+    // If the Alternative 1 tab is currently active, update the display immediately
+    // Use the correct container element that has querySelector
+    const containerElement = this.currentDetailContainer.container;
+    if (containerElement && typeof containerElement.querySelector === 'function') {
+      const currentTab = containerElement.querySelector('.result-tab.active');
+      if (currentTab && currentTab.getAttribute('data-tab') === 'alt1') {
+        const resultContent = containerElement.querySelector('.result-content');
+        if (resultContent) {
+          resultContent.innerHTML = stepIndicatorHTML;
+          console.log(`📋 Updated visible step indicator: ${stepId} -> ${status}`);
+        }
+      }
+    } else {
+      console.warn('⚠️ Cannot find DOM element with querySelector in currentDetailContainer', {
+        containerElement,
+        hasQuerySelector: containerElement && typeof containerElement.querySelector === 'function'
+      });
+    }
+
+    console.log(`📋 Step indicator updated in memory: ${stepId} -> ${status}`);
+  }
+
+  /**
+   * Add or update a step in progressive tracking
+   * @param {string} stepId - Step identifier
+   * @param {string} status - Status (pending, active, completed)
+   * @param {string} activeSubstep - Optional active substep
+   */
+  addOrUpdateProgressiveStep(stepId, status, activeSubstep = null) {
+    // Define step metadata
+    const stepDefinitions = {
+      'routing': {
+        title: 'Analyzing your request', substeps: [
+          { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing' }
+        ]
+      },
+      'processing': {
+        title: 'Generating AI output', substeps: [
+          { id: 'ai-service', icon: '⚙️', text: 'Running AI service' }
+        ]
+      },
+      'reflection': {
+        title: 'Reflecting on output quality', substeps: [
+          { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy' },
+          { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities' }
+        ]
+      },
+      'improvement': {
+        title: 'Enhancing output', substeps: [
+          { id: 'generating-improved', icon: '✨', text: 'Generating improved version' }
+        ]
+      }
+    };
+
+    // Check if step already exists
+    const existingStepIndex = this.progressiveSteps.findIndex(step => step.id === stepId);
+
+    if (existingStepIndex !== -1) {
+      // Update existing step
+      this.progressiveSteps[existingStepIndex].status = status;
+      this.progressiveSteps[existingStepIndex].activeSubstep = activeSubstep;
+      console.log(`📋 Updated existing step: ${stepId} -> ${status}`);
+    } else {
+      // Add new step (only if it becomes active)
+      if (status === 'active') {
+        const stepDef = stepDefinitions[stepId];
+        if (stepDef) {
+          this.progressiveSteps.push({
+            id: stepId,
+            title: stepDef.title,
+            substeps: stepDef.substeps,
+            status: status,
+            activeSubstep: activeSubstep
+          });
+          console.log(`📋 Added new step: ${stepId} -> ${status}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Get all steps with their current status
+   * @returns {Array} Array of all steps with current status
+   */
+  getAllStepsWithStatus() {
+    const stepDefinitions = [
+      {
+        id: 'routing', title: 'Analyzing your request', substeps: [
+          { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing' }
+        ]
+      },
+      {
+        id: 'processing', title: 'Generating AI output', substeps: [
+          { id: 'ai-service', icon: '⚙️', text: 'Running AI service' }
+        ]
+      },
+      {
+        id: 'reflection', title: 'Reflecting on output quality', substeps: [
+          { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy' },
+          { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities' }
+        ]
+      },
+      {
+        id: 'improvement', title: 'Enhancing output', substeps: [
+          { id: 'generating-improved', icon: '✨', text: 'Generating improved version' }
+        ]
+      }
+    ];
+
+    // Apply current status from progressiveSteps if available
+    return stepDefinitions.map((stepDef, index) => {
+      const progressiveStep = this.progressiveSteps?.find(ps => ps.id === stepDef.id);
+      // First step should be active by default if no progressive steps exist
+      const defaultStatus = (index === 0 && (!this.progressiveSteps || this.progressiveSteps.length === 0)) ? 'active' : 'pending';
+      return {
+        ...stepDef,
+        status: progressiveStep?.status || defaultStatus,
+        activeSubstep: progressiveStep?.activeSubstep || null
+      };
+    });
+  }
+
+  /**
+   * Generate HTML showing all steps with current status
+   * @returns {string} Complete step indicator HTML
+   */
+  generateProgressiveStepHTML() {
+    // Always show all steps, not just revealed ones
+    const allSteps = this.getAllStepsWithStatus();
+
+    if (allSteps.length === 0) {
+      return this.generateInitialStepIndicatorHTML();
+    }
+
+    let stepsHTML = '';
+
+    allSteps.forEach((step, index) => {
+      const substepsHTML = step.substeps.map(substep => {
+        const isActive = step.activeSubstep === substep.id;
+        return `<div class="substep" ${isActive ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`;
+      }).join('');
+
+      // Generate step subtitle based on substeps count
+      const substepCount = step.substeps.length;
+      const stepSubtitle = substepCount > 0 ? `${substepCount} ${substepCount === 1 ? 'step' : 'steps'}` : '';
+
+      stepsHTML += `<li class="step-item" data-step="${step.id}" data-status="${step.status}" data-step-number="${index + 1}"><div class="step-content"><div class="step-title">${step.title}</div>${stepSubtitle ? `<div class="step-subtitle">${stepSubtitle}</div>` : ''}<div class="step-substeps">${substepsHTML}</div></div></li>`;
+    });
+
+    return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;
+  }
+
+  /**
+   * Update step indicator HTML based on step status
+   * @param {string} stepId - Step identifier
+   * @param {string} status - Status
+   * @param {string} activeSubstep - Optional active substep
+   * @returns {string} Updated HTML
+   */
+  updateStepIndicatorHTML(stepId, status, activeSubstep = null) {
+    // This is a simplified version - in a real implementation, you'd parse and update the existing HTML
+    // For now, I'll generate fresh HTML with the updated status
+    const steps = [
+      {
+        id: 'routing', title: 'Analyzing your request', substeps: [
+          { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing' }
+        ]
+      },
+      {
+        id: 'processing', title: 'Generating AI output', substeps: [
+          { id: 'ai-service', icon: '⚙️', text: 'Running AI service' }
+        ]
+      },
+      {
+        id: 'reflection', title: 'Reflecting on output quality', substeps: [
+          { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy' },
+          { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities' }
+        ]
+      },
+      {
+        id: 'improvement', title: 'Enhancing output', substeps: [
+          { id: 'generating-improved', icon: '✨', text: 'Generating improved version' }
+        ]
+      }
+    ];
+
+    // Update the step status
+    const targetStep = steps.find(s => s.id === stepId);
+    if (targetStep) {
+      targetStep.status = status;
+      if (status === 'active' && activeSubstep) {
+        targetStep.activeSubstep = activeSubstep;
+      }
+    }
+
+    // Generate HTML with updated statuses
+    const stepsHTML = steps.map((step, index) => {
+      const substepsHTML = step.substeps.map(substep => {
+        const isActive = step.status === 'active' && step.activeSubstep === substep.id;
+        return `<div class="substep" ${isActive ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`;
+      }).join('');
+
+      // Generate step subtitle based on substeps count
+      const substepCount = step.substeps.length;
+      const stepSubtitle = substepCount > 0 ? `${substepCount} ${substepCount === 1 ? 'step' : 'steps'}` : '';
+
+      return `<li class="step-item" data-step="${step.id}" data-status="${step.status ?? 'pending'}" data-step-number="${index + 1}"><div class="step-content"><div class="step-title">${step.title}</div>${stepSubtitle ? `<div class="step-subtitle">${stepSubtitle}</div>` : ''}<div class="step-substeps">${substepsHTML}</div></div></li>`;
+    }).join('');
+
+    return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;
   }
 
   /**
