@@ -1946,7 +1946,7 @@ class TonePilotUIManager {
    * @returns {string} Initial step indicator HTML
    */
   generateInitialStepIndicatorHTML() {
-    return `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active"><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><span class="substep-text">Determining intent and routing</span></div></div></div></li></ul></div>`;
+    return `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active"><div class="step-circle"></div><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><span class="substep-text">Determining intent and routing</span></div></div></div></li></ul></div>`;
   }
 
   /**
@@ -2127,7 +2127,7 @@ class TonePilotUIManager {
         return `<div class="substep" ${isActive ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`;
       }).join('');
 
-      stepsHTML += `<li class="step-item" data-step="${step.id}" data-status="${step.status}"><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
+      stepsHTML += `<li class="step-item" data-step="${step.id}" data-status="${step.status}"><div class="step-circle"></div><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
     });
 
     return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;
@@ -2183,7 +2183,7 @@ class TonePilotUIManager {
         return `<div class="substep" ${isActive ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`;
       }).join('');
 
-      return `<li class="step-item" data-step="${step.id}" data-status="${step.status ?? 'pending'}"><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
+      return `<li class="step-item" data-step="${step.id}" data-status="${step.status ?? 'pending'}"><div class="step-circle"></div><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
     }).join('');
 
     return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;

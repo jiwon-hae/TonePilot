@@ -956,16 +956,6 @@
   margin: 0;
 }
 
-.step-list::before {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 5px;
-  bottom: 0;
-  width: 1px;
-  background: var(--border-primary);
-  z-index: 0;
-}
 
 .step-item {
   position: relative;
@@ -978,11 +968,32 @@
   gap: 8px;
 }
 
-.step-item::before {
+/* Add connecting line below each item (except the last one) */
+.step-item:not(:last-child)::after {
   content: '';
-  position: relative;
-  left: 0;
-  top: 9px;
+  position: absolute;
+  left: 2px;
+  top: 14px; /* right after circle (9px margin + 5px height) */
+  bottom: 0;
+  width: 1px;
+  background: var(--border-primary);
+  z-index: 0;
+}
+
+/* Add connecting line above each item (except the first one) using step-circle::before */
+.step-item:not(:first-child) .step-circle::before {
+  content: '';
+  position: absolute;
+  left: 2px; /* center of 5px circle */
+  top: -17px; /* start from top of step-item (8px padding + 9px margin) */
+  height: 17px; /* connect to the top of the circle */
+  width: 1px;
+  background: var(--border-primary);
+  z-index: 0;
+}
+
+/* Use a wrapper div for circles instead of ::before pseudo-element */
+.step-circle {
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -991,19 +1002,21 @@
   transition: all 0.2s ease;
   flex-shrink: 0;
   z-index: 1;
+  position: relative;
+  margin-top: 9px;
 }
 
-/* Step status colors */
-.step-item[data-status="pending"]::before {
+/* Step circle colors based on status */
+.step-item[data-status="pending"] .step-circle {
   background: #353535;
 }
 
-.step-item[data-status="active"]::before {
+.step-item[data-status="active"] .step-circle {
   background: white;
   animation: pulse 2s infinite;
 }
 
-.step-item[data-status="completed"]::before {
+.step-item[data-status="completed"] .step-circle {
   background: #353535;
 }
 
