@@ -383,28 +383,29 @@ textarea {
   transform: scale(0.95);
 }
 
-.input-action-btn.toggle-btn[data-active="true"] {
-  background:#61c861;
-  color: white;
-}
-
-.input-action-btn.toggle-btn[data-active="true"]:hover {
-  background:#61c861;
-}
-
 .input-action-btn .label {
-  display: none;
+  display: inline;
   margin-left: 4px;
   font-size: 13px;
   font-weight: 500;
 }
 
-.input-action-btn.toggle-btn[data-active="true"] {
-  background:#61c861a5;
+/* Toggle button with active background styling (e.g., translate button) */
+.input-action-btn.toggle-btn-active[data-active="true"] {
+  background: #525252;
   color: white;
 }
 
-.input-action-btn.toggle-btn[data-active="true"] .label {
+.input-action-btn.toggle-btn-active[data-active="true"]:hover {
+  background: #656565;
+}
+
+/* Toggle button with active background also hides label when inactive */
+.input-action-btn.toggle-btn-active .label {
+  display: none;
+}
+
+.input-action-btn.toggle-btn-active[data-active="true"] .label {
   display: inline;
 }
 

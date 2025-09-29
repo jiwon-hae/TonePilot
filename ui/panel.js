@@ -240,6 +240,9 @@ class TonePilotPanel {
       // Set up state listeners
       this.setupStateListeners();
 
+      // Initialize button appearances
+      this.updateDetailButtonAppearance(this.stateManager.getDetailMode());
+
       console.log('✅ UI components initialized');
     } catch (error) {
       console.error('UI component initialization failed:', error);
@@ -251,9 +254,13 @@ class TonePilotPanel {
    * Set up state change listeners
    */
   setupStateListeners() {
-    // Listen for detail mode changes to show/hide step indicator
+    // Listen for detail mode changes to show/hide step indicator and update button
     this.stateManager.addListener('detailMode', (detailMode) => {
       console.log('📋 Detail mode state changed:', detailMode);
+
+      // Update button appearance
+      this.updateDetailButtonAppearance(detailMode);
+
       if (detailMode) {
         // Detail mode enabled - step indicator will be shown when processing starts
         console.log('📋 Detail mode enabled, step indicator will show during processing');
@@ -476,7 +483,32 @@ class TonePilotPanel {
     // Update state manager
     this.stateManager.setDetailMode(!isActive);
 
+    // Update button icon and label
+    this.updateDetailButtonAppearance(!isActive);
+
     console.log(`📋 Detail mode ${!isActive ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Update detail button appearance based on mode
+   * @param {boolean} isDetailMode - Whether detail mode is active
+   */
+  updateDetailButtonAppearance(isDetailMode) {
+    const detailBtn = this.uiManager.elements.detailBtn;
+    const imgElement = detailBtn.querySelector('img');
+    const labelElement = detailBtn.querySelector('.label');
+
+    if (isDetailMode) {
+      // Detail mode: use complex.png and "Complex" label
+      imgElement.src = '../icons/complex.png';
+      imgElement.alt = 'Complex';
+      labelElement.textContent = 'Complex';
+    } else {
+      // Simple mode: use simple.png and "Simple" label
+      imgElement.src = '../icons/simple.png';
+      imgElement.alt = 'Simple';
+      labelElement.textContent = 'Simple';
+    }
   }
 
   /**
