@@ -785,9 +785,7 @@ textarea {
 }
 
 .step-list {
-  position: relative;
-  border-left: 2px solid #444;
-  padding-left: 30px;
+  /* Removed old border styles - now handled in components.css */
 }
 
 .step-item {
