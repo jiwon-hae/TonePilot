@@ -2177,13 +2177,13 @@ class TonePilotUIManager {
     }
 
     // Generate HTML with updated statuses
-    const stepsHTML = steps.map((step, index) => {
+    const stepsHTML = steps.map(step => {
       const substepsHTML = step.substeps.map(substep => {
         const isActive = step.status === 'active' && step.activeSubstep === substep.id;
         return `<div class="substep" ${isActive ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`;
       }).join('');
 
-      return `<li class="step-item" data-step="${step.id}" data-status="${step.status ?? 'pending'}" data-step-number="${index + 1}"><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
+      return `<li class="step-item" data-step="${step.id}" data-status="${step.status ?? 'pending'}"><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
     }).join('');
 
     return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;

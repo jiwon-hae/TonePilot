@@ -601,7 +601,7 @@ class TonePilotPanel {
 
           if (detailModeActive) {
             console.log('📑 Detail mode is active - creating initial step indicator for Alternative 1 tab');
-            resultContent.innerHTML = `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active" data-step-number="1"><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><span class="substep-text">Determining intent and routing</span></div></div></div></li></ul></div>`;
+            resultContent.innerHTML = `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active"><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><span class="substep-text">Determining intent and routing</span></div></div></div></li></ul></div>`;
           } else {
             // Show a fallback message if not in detail mode
             resultContent.innerHTML = '<div class="step-indicator"><ul class="step-list"><li class="step-item"><div class="step-content"><div class="step-title">No step information available</div></div></li></ul></div>';

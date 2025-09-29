@@ -1189,7 +1189,7 @@ class TonePilotAIServicesManager {
   generateStepIndicatorHTML() {
     if (!this.currentStepTracker) return '';
 
-    const stepsHTML = this.currentStepTracker.steps.map((step, index) => {
+    const stepsHTML = this.currentStepTracker.steps.map(step => {
       const substepsHTML = step.substeps.map(substep => `<div class="substep" ${substep.active ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`).join('');
 
       return `<li class="step-item" data-step="${step.id}" data-status="${step.status}"><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
