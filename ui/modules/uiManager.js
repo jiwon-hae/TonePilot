@@ -137,8 +137,7 @@ class TonePilotUIManager {
         this.eventListeners.push({ element: this.elements.removeResumeBtn, event: 'click', handler: removeHandler });
       }
 
-      // Tab navigation
-      this.bindTabEvents();
+      // Tab navigation is handled via document click handler in panel.js
 
       // Input textarea keyboard events
       if (this.elements.inputText) {
@@ -167,16 +166,9 @@ class TonePilotUIManager {
   }
 
   /**
-   * Bind tab navigation events
+   * Tab navigation events are handled via document click handler in panel.js
+   * This ensures dynamic tabs in conversation containers work correctly
    */
-  bindTabEvents() {
-    const tabs = document.querySelectorAll('.result-tab');
-    tabs.forEach(tab => {
-      const tabHandler = () => this.handleTabSwitch(tab);
-      tab.addEventListener('click', tabHandler);
-      this.eventListeners.push({ element: tab, event: 'click', handler: tabHandler });
-    });
-  }
 
   /**
    * Update status display
@@ -368,13 +360,13 @@ class TonePilotUIManager {
       container.style.height = 'auto';
       container.style.minHeight = 'auto';
 
-      // Also reset result content height and flex behavior to auto
-      const resultContent = container.querySelector('.result-content');
-      if (resultContent) {
-        resultContent.style.height = 'auto';
-        resultContent.style.minHeight = 'auto';
-        resultContent.style.flex = ''; // Reset to CSS default
-      }
+      // Also reset tab content height and flex behavior to auto
+      const tabContents = container.querySelectorAll('.tab-content');
+      tabContents.forEach(content => {
+        content.style.height = 'auto';
+        content.style.minHeight = 'auto';
+        content.style.flex = ''; // Reset to CSS default
+      });
     });
 
     console.log(`🔄 Resized ${existingContainers.length} previous conversations to content size`);
@@ -412,7 +404,9 @@ class TonePilotUIManager {
         </button>
         <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
       </div>
-      <div class="result-content"></div>
+      <div id="primary-content" class="tab-content"></div>
+      <div id="alt1-content" class="tab-content" style="display: none;"></div>
+      <div id="alt2-content" class="tab-content" style="display: none;"></div>
       <div class="result-actions" style="display: none;">
         <button class="btn btn-secondary">
           <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
@@ -420,8 +414,8 @@ class TonePilotUIManager {
       </div>
     `;
 
-    // Get result content element - loading will be managed inside this div
-    const resultContent = resultSection.querySelector('.result-content');
+    // Get primary content element - loading will be managed inside this div
+    const primaryContent = resultSection.querySelector('#primary-content');
 
     // Assemble container
     containerDiv.appendChild(queryDisplay);
@@ -492,19 +486,16 @@ class TonePilotUIManager {
       const containerStyle = window.getComputedStyle(containerDiv);
       const containerMargins = parseFloat(containerStyle.marginTop) + parseFloat(containerStyle.marginBottom);
 
-      // During loading: Let loading area size naturally to fit loading text
+      // During loading: Let primary content area size naturally to fit loading text
       // Natural sizing prevents overscroll during loading phase
-      loadingArea.style.height = 'auto';
-      loadingArea.style.minHeight = 'auto';
-      // Ensure loading area is visible and properly styled
-      loadingArea.style.display = 'block';
-      loadingArea.style.visibility = 'visible';
+      primaryContent.style.height = 'auto';
+      primaryContent.style.minHeight = 'auto';
+      // Ensure primary content is visible and properly styled
+      primaryContent.style.display = 'block';
+      primaryContent.style.visibility = 'visible';
 
-      // Don't set height on result-content during loading since it's hidden
       // Use natural flow instead of flex to prevent upward growth
-      resultContent.style.flex = 'none';
-      resultContent.style.height = 'auto';
-      resultContent.style.minHeight = 'auto';
+      primaryContent.style.flex = 'none';
 
       console.log('📐 Loading area sized naturally to prevent overscroll');
 
@@ -519,16 +510,16 @@ class TonePilotUIManager {
           tabsMargins,
           containerMargins
         },
-        loadingAreaTargetHeight,
-        expectedTotalHeight: queryHeight + queryMargins + tabsHeight + tabsMargins + loadingAreaTargetHeight + containerMargins,
+        primaryContentHeight: 'auto (natural sizing)',
+        expectedTotalHeight: 'calculated after content loads',
         shouldEqual: availableHeight,
-        willFitInMainContent: (queryHeight + queryMargins + tabsHeight + tabsMargins + loadingAreaTargetHeight + containerMargins) <= availableHeight
+        willFitInMainContent: 'calculated after content loads'
       });
     });
 
-    // Start loading animation in result content (Primary tab content by default)
-    console.log('🎬 Starting loading animation in result content');
-    this.startLoadingInContainer(resultContent);
+    // Start loading animation in primary content (Primary tab content by default)
+    console.log('🎬 Starting loading animation in primary content');
+    this.startLoadingInContainer(primaryContent);
 
     // In detail mode, the Alternative 1 tab will be activated and show step indicators instead
     if (detailMode) {
@@ -540,12 +531,19 @@ class TonePilotUIManager {
       this.handleFillerForNewItem(containerDiv);
     });
 
+    // Get all content containers
+    const alt1Content = resultSection.querySelector('#alt1-content');
+    const alt2Content = resultSection.querySelector('#alt2-content');
+
     // Initialize results object for tab switching
     const conversationContainer = {
       container: containerDiv,
       queryDisplay,
       resultSection,
-      resultContent,
+      resultContent: primaryContent, // For backward compatibility
+      primaryContent,
+      alt1Content,
+      alt2Content,
       results: {
         primary: null,
         alt1: null,
@@ -767,16 +765,22 @@ class TonePilotUIManager {
         conversationContainer.resultSection.querySelectorAll('.result-tab').forEach(t => t.classList.remove('active'));
         primaryTab.classList.add('active');
 
-        // Update result content with AI-generated text for Primary tab
-        conversationContainer.resultContent.textContent = results.primary;
-        conversationContainer.resultContent.style.display = 'block';
-        // Use natural content flow - no flex, no fixed heights
-        conversationContainer.resultContent.style.height = 'auto';
-        conversationContainer.resultContent.style.minHeight = 'auto';
-        conversationContainer.resultContent.style.flex = 'none';
-        // Ensure content grows downward from the tabs, not upward
-        conversationContainer.resultContent.style.position = 'relative';
-        conversationContainer.resultContent.style.top = '0';
+        // Update primary content with AI-generated text
+        if (conversationContainer.primaryContent) {
+          conversationContainer.primaryContent.textContent = results.primary;
+          conversationContainer.primaryContent.style.display = 'block';
+          conversationContainer.primaryContent.style.height = 'auto';
+          conversationContainer.primaryContent.style.minHeight = 'auto';
+          conversationContainer.primaryContent.style.flex = 'none';
+        }
+
+        // Populate alternative content containers
+        if (conversationContainer.alt1Content && results.alt1) {
+          conversationContainer.alt1Content.innerHTML = results.alt1;
+        }
+        if (conversationContainer.alt2Content && results.alt2) {
+          conversationContainer.alt2Content.textContent = results.alt2;
+        }
 
         console.log('📑 Results ready: switched to Primary tab with AI results');
       }
@@ -1558,15 +1562,15 @@ class TonePilotUIManager {
    */
   handleCopyFromContainer(containerDiv) {
     try {
-      // Find the result content within this specific container
-      const resultContent = containerDiv.querySelector('.result-content');
-      if (!resultContent) {
-        console.warn('No result content found in container');
+      // Find the currently active tab content within this specific container
+      const activeTabContent = containerDiv.querySelector('.tab-content[style*="block"]');
+      if (!activeTabContent) {
+        console.warn('No active tab content found in container');
         return;
       }
 
-      // Get the text content
-      const textToCopy = resultContent.textContent || resultContent.innerText || '';
+      // Get the text content from the active tab
+      const textToCopy = activeTabContent.textContent || activeTabContent.innerText || '';
 
       if (!textToCopy.trim()) {
         console.warn('No content to copy');
@@ -1922,14 +1926,12 @@ class TonePilotUIManager {
       conversationContainer.resultSection.querySelectorAll('.result-tab').forEach(t => t.classList.remove('active'));
       alt1Tab.classList.add('active');
 
-      // Show step indicators immediately in result content
-      const resultContent = conversationContainer.resultSection.querySelector('.result-content');
-
-      if (resultContent) {
-        // Replace loading content with step indicators in result content
-        resultContent.innerHTML = initialStepHTML;
-        resultContent.style.display = 'block';
-        resultContent.style.visibility = 'visible';
+      // Show step indicators immediately in alt1 content
+      if (conversationContainer.alt1Content) {
+        // Replace loading content with step indicators in alt1 content
+        conversationContainer.alt1Content.innerHTML = initialStepHTML;
+        conversationContainer.alt1Content.style.display = 'block';
+        conversationContainer.alt1Content.style.visibility = 'visible';
 
         // Mark this container as having detail mode active so tab switching knows to handle it differently
         conversationContainer._detailModeActive = true;
@@ -1993,9 +1995,9 @@ class TonePilotUIManager {
     if (containerElement && typeof containerElement.querySelector === 'function') {
       const currentTab = containerElement.querySelector('.result-tab.active');
       if (currentTab && currentTab.getAttribute('data-tab') === 'alt1') {
-        const resultContent = containerElement.querySelector('.result-content');
-        if (resultContent) {
-          resultContent.innerHTML = stepIndicatorHTML;
+        const alt1Content = containerElement.querySelector('#alt1-content');
+        if (alt1Content) {
+          alt1Content.innerHTML = stepIndicatorHTML;
           console.log(`📋 Updated visible step indicator: ${stepId} -> ${status}`);
         }
       }

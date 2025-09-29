@@ -544,10 +544,6 @@ class TonePilotPanel {
   handleTabSwitch(tab) {
     console.log('📑 Result tab switched:', tab.textContent);
 
-    // Update active tab display
-    document.querySelectorAll('.result-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-
     // Find the conversation container that contains this tab
     const conversationContainer = tab.closest('.conversation-container');
     if (!conversationContainer) {
@@ -557,107 +553,28 @@ class TonePilotPanel {
 
     // Get the tab type
     const tabType = tab.getAttribute('data-tab');
-    const resultContent = conversationContainer.querySelector('.result-content');
 
-    // Debug: Check what content is available for this conversation
-    const storedResults = conversationContainer.results;
-    console.log(`📑 Switching to ${tabType} tab`, {
-      hasResultContent: !!resultContent,
-      resultContentDisplay: resultContent?.style.display,
-      storedResults: storedResults ? {
-        hasPrimary: !!storedResults.primary,
-        hasAlt1: !!storedResults.alt1,
-        hasAlt2: !!storedResults.alt2,
-        alt1Preview: storedResults.alt1 ? storedResults.alt1.substring(0, 100) + '...' : 'none'
-      } : 'no stored results'
+    // Hide all tab contents in this conversation
+    conversationContainer.querySelectorAll('.tab-content').forEach(content => {
+      content.style.display = 'none';
     });
 
-    if (tabType === 'primary') {
-      // Primary tab: show results if available, otherwise show loading
-      if (resultContent) {
-        const storedResults = conversationContainer.results;
+    // Remove active class from all tabs in this conversation
+    conversationContainer.querySelectorAll('.result-tab').forEach(t => {
+      t.classList.remove('active');
+    });
 
-        if (storedResults && storedResults.primary) {
-          // Results are available - show them
-          resultContent.innerHTML = '';
-          resultContent.textContent = storedResults.primary;
-          resultContent.style.display = 'block';
-          console.log('📑 Primary tab: showing stored results', {
-            resultLength: storedResults.primary.length,
-            resultPreview: storedResults.primary.substring(0, 100) + '...'
-          });
-        } else {
-          // No results yet - show loading (start loading animation in result content)
-          resultContent.style.display = 'block';
-          // Clear any previous content and start loading
-          resultContent.innerHTML = '';
-          // Start loading animation in result content
-          this.uiManager?.startLoadingInContainer(resultContent);
-          console.log('📑 Primary tab: showing loading in result content (no results yet)');
-        }
-      }
-    } else if (tabType === 'alt1') {
-      // Alternative 1 tab: always show result content with step indicators, never show loading
-      if (resultContent) {
-        // Show result content
-        resultContent.style.display = 'block';
-        resultContent.style.visibility = 'visible';
-        console.log('📑 Alternative 1 tab: showing step indicators in result content');
-
-        // Get the stored step indicator content - ALWAYS preserve step indicators in Alternative 1 tab
-        const storedResults = conversationContainer.results;
-
-        console.log('📑 Alternative 1 tab: checking stored content', {
-          hasStoredResults: !!storedResults,
-          hasAlt1Content: !!(storedResults && storedResults[tabType]),
-          alt1ContentLength: storedResults && storedResults[tabType] ? storedResults[tabType].length : 0,
-          alt1Preview: storedResults && storedResults[tabType] ? storedResults[tabType].substring(0, 50) + '...' : 'none'
-        });
-
-        if (storedResults && storedResults[tabType]) {
-          // Always handle as HTML content for step indicators in Alternative 1 tab
-          if (storedResults[tabType].includes('<div class="step-indicator">')) {
-            resultContent.innerHTML = storedResults[tabType];
-            console.log('📑 Alternative 1 tab: loaded step indicator content');
-          } else {
-            // Even if it doesn't look like step indicators, treat as HTML in case it's step content
-            resultContent.innerHTML = storedResults[tabType];
-            console.log('📑 Alternative 1 tab: loaded content as HTML (preserving any step indicators)');
-          }
-        } else {
-          console.log('📑 No stored Alternative 1 content yet - checking if detail mode is active');
-
-          // Check if detail mode is active (either by button state or if Alternative 1 tab is visible)
-          const detailModeActive = document.querySelector('#detailBtn[data-active="true"]') ||
-            conversationContainer.querySelector('[data-tab="alt1"]').style.display !== 'none';
-
-          if (detailModeActive) {
-            console.log('📑 Detail mode is active - creating initial step indicator for Alternative 1 tab');
-            resultContent.innerHTML = `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active"><div class="step-circle"></div><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><span class="substep-text">Determining intent and routing</span></div></div></div></li></ul></div>`;
-          } else {
-            // Show a fallback message if not in detail mode
-            resultContent.innerHTML = '<div class="step-indicator"><ul class="step-list"><li class="step-item"><div class="step-content"><div class="step-title">No step information available</div></div></li></ul></div>';
-          }
-        }
-      }
-    } else if (tabType === 'alt2') {
-      // Alternative 2 tab: show result content if available
-      if (resultContent) {
-        resultContent.style.display = 'block';
-
-        const storedResults = conversationContainer.results;
-        if (storedResults && storedResults[tabType]) {
-          resultContent.innerHTML = '';
-          resultContent.textContent = storedResults[tabType];
-          console.log('📑 Alternative 2 tab: loaded content');
-        } else {
-          // No Alternative 2 content available yet
-          resultContent.innerHTML = '';
-          resultContent.textContent = 'No additional content available';
-          console.log('📑 Alternative 2 tab: no content available yet');
-        }
-      }
+    // Show selected content and activate tab
+    const targetContent = conversationContainer.querySelector(`#${tabType}-content`);
+    if (targetContent) {
+      targetContent.style.display = 'block';
+      console.log(`📑 Switched to ${tabType} tab, showing content`);
+    } else {
+      console.warn(`⚠️ Could not find content container for tab: ${tabType}`);
     }
+
+    // Activate the clicked tab
+    tab.classList.add('active');
   }
 
   /**
@@ -683,9 +600,10 @@ class TonePilotPanel {
    */
   handleDocumentClick(event) {
     try {
-      // Handle tab clicks
-      if (event.target.classList.contains('result-tab')) {
-        this.handleTabSwitch(event.target);
+      // Handle tab clicks (including clicks on child elements like icons/spans)
+      const tabElement = event.target.closest('.result-tab');
+      if (tabElement) {
+        this.handleTabSwitch(tabElement);
       }
 
       if (event.target.classList.contains('tab-btn')) {

@@ -511,6 +511,19 @@ textarea {
   font-size: 15px;
 }
 
+/* New tab content containers */
+.tab-content {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 20px 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  color: var(--text-primary);
+  font-size: 15px;
+  word-wrap: break-word;
+}
+
 .result-actions {
   display: flex;
   border-bottom: 1px solid rgba(179, 179, 179, 0.3);
