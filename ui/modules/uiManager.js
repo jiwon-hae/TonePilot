@@ -1892,8 +1892,19 @@ class TonePilotUIManager {
     // Reset progressive steps for new conversation
     this.progressiveSteps = [];
 
+    // Initialize with first step (routing)
+    this.progressiveSteps.push({
+      id: 'routing',
+      title: 'Analyzing your request',
+      substeps: [
+        { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing' }
+      ],
+      status: 'active',
+      activeSubstep: 'semantic-routing'
+    });
+
     // Initialize step indicator HTML in the Alternative 1 tab content area
-    const initialStepHTML = this.generateInitialStepIndicatorHTML();
+    const initialStepHTML = this.generateProgressiveStepHTML();
 
     // Store this in the conversation container for immediate access
     if (!conversationContainer.results) {
@@ -1935,7 +1946,7 @@ class TonePilotUIManager {
    * @returns {string} Initial step indicator HTML
    */
   generateInitialStepIndicatorHTML() {
-    return `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active" data-step-number="1"><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-subtitle">1 step</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><span class="substep-text">Determining intent and routing</span></div></div></div></li></ul></div>`;
+    return `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active"><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><span class="substep-text">Determining intent and routing</span></div></div></div></li></ul></div>`;
   }
 
   /**
@@ -2099,30 +2110,24 @@ class TonePilotUIManager {
   }
 
   /**
-   * Generate HTML showing all steps with current status
-   * @returns {string} Complete step indicator HTML
+   * Generate HTML showing only revealed steps progressively
+   * @returns {string} Progressive step indicator HTML
    */
   generateProgressiveStepHTML() {
-    // Always show all steps, not just revealed ones
-    const allSteps = this.getAllStepsWithStatus();
-
-    if (allSteps.length === 0) {
+    // Only show steps that have been revealed (in progressiveSteps array)
+    if (!this.progressiveSteps || this.progressiveSteps.length === 0) {
       return this.generateInitialStepIndicatorHTML();
     }
 
     let stepsHTML = '';
 
-    allSteps.forEach((step, index) => {
+    this.progressiveSteps.forEach((step, index) => {
       const substepsHTML = step.substeps.map(substep => {
         const isActive = step.activeSubstep === substep.id;
         return `<div class="substep" ${isActive ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`;
       }).join('');
 
-      // Generate step subtitle based on substeps count
-      const substepCount = step.substeps.length;
-      const stepSubtitle = substepCount > 0 ? `${substepCount} ${substepCount === 1 ? 'step' : 'steps'}` : '';
-
-      stepsHTML += `<li class="step-item" data-step="${step.id}" data-status="${step.status}" data-step-number="${index + 1}"><div class="step-content"><div class="step-title">${step.title}</div>${stepSubtitle ? `<div class="step-subtitle">${stepSubtitle}</div>` : ''}<div class="step-substeps">${substepsHTML}</div></div></li>`;
+      stepsHTML += `<li class="step-item" data-step="${step.id}" data-status="${step.status}"><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
     });
 
     return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;
@@ -2178,11 +2183,7 @@ class TonePilotUIManager {
         return `<div class="substep" ${isActive ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`;
       }).join('');
 
-      // Generate step subtitle based on substeps count
-      const substepCount = step.substeps.length;
-      const stepSubtitle = substepCount > 0 ? `${substepCount} ${substepCount === 1 ? 'step' : 'steps'}` : '';
-
-      return `<li class="step-item" data-step="${step.id}" data-status="${step.status ?? 'pending'}" data-step-number="${index + 1}"><div class="step-content"><div class="step-title">${step.title}</div>${stepSubtitle ? `<div class="step-subtitle">${stepSubtitle}</div>` : ''}<div class="step-substeps">${substepsHTML}</div></div></li>`;
+      return `<li class="step-item" data-step="${step.id}" data-status="${step.status ?? 'pending'}" data-step-number="${index + 1}"><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
     }).join('');
 
     return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;

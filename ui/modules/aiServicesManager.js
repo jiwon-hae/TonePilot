@@ -1192,11 +1192,7 @@ class TonePilotAIServicesManager {
     const stepsHTML = this.currentStepTracker.steps.map((step, index) => {
       const substepsHTML = step.substeps.map(substep => `<div class="substep" ${substep.active ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`).join('');
 
-      // Generate step subtitle based on substeps count
-      const substepCount = step.substeps.length;
-      const stepSubtitle = substepCount > 0 ? `${substepCount} ${substepCount === 1 ? 'step' : 'steps'}` : '';
-
-      return `<li class="step-item" data-step="${step.id}" data-status="${step.status}" data-step-number="${index + 1}"><div class="step-content"><div class="step-title">${step.title}</div>${stepSubtitle ? `<div class="step-subtitle">${stepSubtitle}</div>` : ''}<div class="step-substeps">${substepsHTML}</div></div></li>`;
+      return `<li class="step-item" data-step="${step.id}" data-status="${step.status}"><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
     }).join('');
 
     return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;
