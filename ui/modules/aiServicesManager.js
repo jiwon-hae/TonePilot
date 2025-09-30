@@ -307,15 +307,7 @@ class TonePilotAIServicesManager {
       return finalResult;
 
     } catch (error) {
-      // Stop loading animation and show error in the result content area
-      this.uiManager.stopLoadingAnimation();
-      if (this.uiManager.elements.resultContent) {
-        this.uiManager.elements.resultContent.innerHTML = `
-          <div class="error">
-            <span>Processing failed: ${error.message}</span>
-          </div>
-        `;
-      }
+      // Error will be handled by the conversation item that called this method
       console.error('❌ Text processing failed:', error);
       throw error;
     }

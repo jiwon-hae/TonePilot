@@ -575,6 +575,9 @@ class TonePilotPanel {
 
     // Activate the clicked tab
     tab.classList.add('active');
+
+    // Adjust filler after tab switch since different tabs may have different heights
+    this.uiManager.adjustFillerAfterTabSwitch(conversationContainer);
   }
 
   /**

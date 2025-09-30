@@ -960,7 +960,7 @@
 .step-item {
   position: relative;
   margin-bottom: 0;
-  padding: 8px 0;
+  padding: 0px 0px 15px 0px;
   transition: all 0.2s ease;
   list-style: none;
   display: flex;
@@ -972,7 +972,7 @@
 .step-item:not(:last-child)::after {
   content: '';
   position: absolute;
-  left: 2px;
+  left: 3px;
   top: 14px; /* right after circle (9px margin + 5px height) */
   bottom: 0;
   width: 1px;
@@ -984,7 +984,7 @@
 .step-item:not(:first-child) .step-circle::before {
   content: '';
   position: absolute;
-  left: 2px; /* center of 5px circle */
+  left: 3px; /* center of 5px circle */
   top: -17px; /* start from top of step-item (8px padding + 9px margin) */
   height: 17px; /* connect to the top of the circle */
   width: 1px;
@@ -994,8 +994,8 @@
 
 /* Use a wrapper div for circles instead of ::before pseudo-element */
 .step-circle {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   border: none;
   background: var(--secondary-bg);

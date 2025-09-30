@@ -31,21 +31,28 @@ class TonePilotConversationItemManager {
     containerDiv.appendChild(queryDisplay);
     containerDiv.appendChild(resultSection);
 
-    // Get references to key elements
-    const loadingArea = resultSection.querySelector('.loading-area');
-    const resultContent = resultSection.querySelector('.result-content');
+    // Get references to key elements (new tab structure)
+    const primaryContent = resultSection.querySelector('#primary-content');
+    const alt1Content = resultSection.querySelector('#alt1-content');
+    const alt2Content = resultSection.querySelector('#alt2-content');
 
     // Add event listeners for this item
     this.bindItemEvents(containerDiv);
 
-    // Store item reference
+    // Store item reference (new tab structure)
     const itemData = {
       container: containerDiv,
       queryDisplay,
       resultSection,
-      loadingArea,
-      resultContent,
-      inputText: safeInputText
+      primaryContent,
+      alt1Content,
+      alt2Content,
+      inputText: safeInputText,
+      results: {
+        primary: null,
+        alt1: null,
+        alt2: null
+      }
     };
 
     const itemId = containerDiv.getAttribute('data-conversation-id');
@@ -84,13 +91,16 @@ class TonePilotConversationItemManager {
         </button>
         <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
       </div>
-      <div class="loading-area"></div>
-      <div class="result-content" style="display: none;"></div>
-      <div class="result-actions" style="display: none;">
-        <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
-          <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
-        </button>
+      <div id="primary-content" class="tab-content">
+        <div class="loading-message">* Chroming it…</div>
+        <div class="result-actions" style="display: none;">
+          <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
+            <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
+          </button>
+        </div>
       </div>
+      <div id="alt1-content" class="tab-content" style="display: none;"></div>
+      <div id="alt2-content" class="tab-content" style="display: none;"></div>
     `;
     return resultSection;
   }
@@ -109,14 +119,8 @@ class TonePilotConversationItemManager {
       });
     }
 
-    // Tab switching
-    const tabs = containerDiv.querySelectorAll('.result-tab');
-    tabs.forEach(tab => {
-      tab.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.handleTabSwitch(containerDiv, tab);
-      });
-    });
+    // Tab switching is handled by global event delegation in panel.js
+    // No need to bind individual tab click listeners here
   }
 
   /**
@@ -125,10 +129,13 @@ class TonePilotConversationItemManager {
    */
   handleCopy(containerDiv) {
     try {
-      // Find the result content within this specific container
-      const resultContent = containerDiv.querySelector('.result-content');
+      // Find the currently active tab content
+      const activeTab = containerDiv.querySelector('.result-tab.active');
+      const activeTabType = activeTab ? activeTab.getAttribute('data-tab') : 'primary';
+      const resultContent = containerDiv.querySelector(`#${activeTabType}-content`);
+
       if (!resultContent) {
-        console.warn('No result content found in container');
+        console.warn('No result content found in active tab');
         return;
       }
 
@@ -205,28 +212,6 @@ class TonePilotConversationItemManager {
   }
 
   /**
-   * Handle tab switching within a conversation item
-   * @param {HTMLElement} containerDiv - The conversation container
-   * @param {HTMLElement} clickedTab - The tab that was clicked
-   */
-  handleTabSwitch(containerDiv, clickedTab) {
-    // Remove active class from all tabs in this container
-    const tabs = containerDiv.querySelectorAll('.result-tab');
-    tabs.forEach(tab => tab.classList.remove('active'));
-
-    // Add active class to clicked tab
-    clickedTab.classList.add('active');
-
-    // TODO: Switch content based on tab (primary, alt1, alt2)
-    const tabType = clickedTab.getAttribute('data-tab');
-    console.log(`Tab switched to: ${tabType} in container:`, containerDiv);
-
-    // Future enhancement: Update result content based on selected tab
-    // const resultContent = containerDiv.querySelector('.result-content');
-    // this.updateContentForTab(resultContent, tabType);
-  }
-
-  /**
    * Update conversation item with generated results
    * @param {Object} itemData - Conversation item data
    * @param {Object} results - Generated results
@@ -234,22 +219,39 @@ class TonePilotConversationItemManager {
   updateWithResults(itemData, results) {
     if (!itemData || !results) return;
 
-    const { container, loadingArea, resultContent, resultSection } = itemData;
+    const { container, primaryContent, alt1Content, alt2Content, resultSection } = itemData;
 
-    // Hide loading area
-    if (loadingArea) {
-      loadingArea.style.display = 'none';
+    // Hide loading message and show result content in primary tab
+    if (primaryContent) {
+      const loadingMessage = primaryContent.querySelector('.loading-message');
+      if (loadingMessage) {
+        loadingMessage.style.display = 'none';
+      }
+
+      // Add result content to primary tab
+      let resultDiv = primaryContent.querySelector('.result-content');
+      if (!resultDiv) {
+        resultDiv = document.createElement('div');
+        resultDiv.className = 'result-content';
+        primaryContent.insertBefore(resultDiv, primaryContent.querySelector('.result-actions'));
+      }
+
+      resultDiv.textContent = results.primary || '';
+      resultDiv.style.display = 'block';
+      resultDiv.style.height = 'auto';
+      resultDiv.style.minHeight = 'auto';
+      resultDiv.style.flex = 'none';
+      resultDiv.style.position = 'relative';
+      resultDiv.style.top = '0';
     }
 
-    // Show and populate result content
-    if (resultContent) {
-      resultContent.textContent = results.primary || '';
-      resultContent.style.display = 'block';
-      resultContent.style.height = 'auto';
-      resultContent.style.minHeight = 'auto';
-      resultContent.style.flex = 'none';
-      resultContent.style.position = 'relative';
-      resultContent.style.top = '0';
+    // Populate alternative tabs with their content
+    if (results.alt1 && alt1Content) {
+      alt1Content.innerHTML = `<div class="result-content">${results.alt1}</div>`;
+    }
+
+    if (results.alt2 && alt2Content) {
+      alt2Content.innerHTML = `<div class="result-content">${results.alt2}</div>`;
     }
 
     // Show alternative tabs if they have content

@@ -404,14 +404,15 @@ class TonePilotUIManager {
         </button>
         <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
       </div>
-      <div id="primary-content" class="tab-content"></div>
+      <div id="primary-content" class="tab-content">
+        <div class="result-actions" style="display: none;">
+          <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
+            <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
+          </button>
+        </div>
+      </div>
       <div id="alt1-content" class="tab-content" style="display: none;"></div>
       <div id="alt2-content" class="tab-content" style="display: none;"></div>
-      <div class="result-actions" style="display: none;">
-        <button class="btn btn-secondary">
-          <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
-        </button>
-      </div>
     `;
 
     // Get primary content element - loading will be managed inside this div
@@ -491,8 +492,8 @@ class TonePilotUIManager {
       primaryContent.style.height = 'auto';
       primaryContent.style.minHeight = 'auto';
       // Ensure primary content is visible and properly styled
-      primaryContent.style.display = 'block';
-      primaryContent.style.visibility = 'visible';
+      // primaryContent.style.display = 'none';
+      // primaryContent.style.visibility = 'none';
 
       // Use natural flow instead of flex to prevent upward growth
       primaryContent.style.flex = 'none';
@@ -519,7 +520,11 @@ class TonePilotUIManager {
 
     // Start loading animation in primary content (Primary tab content by default)
     console.log('🎬 Starting loading animation in primary content');
+    console.log('🔍 DEBUG: primaryContent element:', primaryContent);
+    console.log('🔍 DEBUG: primaryContent.id:', primaryContent?.id);
+    console.log('🔍 DEBUG: primaryContent innerHTML before loading:', primaryContent?.innerHTML);
     this.startLoadingInContainer(primaryContent);
+    console.log('🔍 DEBUG: primaryContent innerHTML after loading:', primaryContent?.innerHTML);
 
     // In detail mode, the Alternative 1 tab will be activated and show step indicators instead
     if (detailMode) {
@@ -583,8 +588,18 @@ class TonePilotUIManager {
 
     let messageIndex = 0;
 
-    // Set initial message
-    contentElement.innerHTML = `<div class="loading-message">${loadingMessages[0]}</div>`;
+    // Check if loading message already exists, if not create it
+    let loadingMessageElement = contentElement.querySelector('.loading-message');
+    if (!loadingMessageElement) {
+      loadingMessageElement = document.createElement('div');
+      loadingMessageElement.className = 'loading-message';
+      // Insert at the beginning of the content, before any existing elements
+      contentElement.insertBefore(loadingMessageElement, contentElement.firstChild);
+    }
+
+    // Set initial message content
+    loadingMessageElement.textContent = loadingMessages[0];
+    // Don't set explicit display style - let parent container control visibility
     console.log('🎬 Set initial loading message:', loadingMessages[0]);
 
     // Clear any existing loading interval first
@@ -757,7 +772,7 @@ class TonePilotUIManager {
     }
 
     // Switch to Primary tab and update content - but preserve Alternative 1 tab content in detail mode
-    if (conversationContainer && conversationContainer.resultContent && conversationContainer.resultSection) {
+    if (conversationContainer && conversationContainer.primaryContent && conversationContainer.resultSection) {
       const primaryTab = conversationContainer.resultSection.querySelector('[data-tab="primary"]');
 
       if (primaryTab) {
@@ -767,7 +782,33 @@ class TonePilotUIManager {
 
         // Update primary content with AI-generated text
         if (conversationContainer.primaryContent) {
-          conversationContainer.primaryContent.textContent = results.primary;
+          // Hide loading message if it exists
+          const loadingMessage = conversationContainer.primaryContent.querySelector('.loading-message');
+          if (loadingMessage) {
+            loadingMessage.style.display = 'none';
+          }
+
+          // Find or create result content div
+          let resultDiv = conversationContainer.primaryContent.querySelector('.result-content');
+          if (!resultDiv) {
+            resultDiv = document.createElement('div');
+            resultDiv.className = 'result-content';
+            // Insert before result-actions if they exist
+            const resultActions = conversationContainer.primaryContent.querySelector('.result-actions');
+            if (resultActions) {
+              conversationContainer.primaryContent.insertBefore(resultDiv, resultActions);
+            } else {
+              conversationContainer.primaryContent.appendChild(resultDiv);
+            }
+          }
+
+          // Update result content
+          resultDiv.textContent = results.primary;
+          resultDiv.style.display = 'block';
+          resultDiv.style.height = 'auto';
+          resultDiv.style.minHeight = 'auto';
+          resultDiv.style.flex = 'none';
+
           conversationContainer.primaryContent.style.display = 'block';
           conversationContainer.primaryContent.style.height = 'auto';
           conversationContainer.primaryContent.style.minHeight = 'auto';
@@ -1221,6 +1262,21 @@ class TonePilotUIManager {
   }
 
   /**
+   * Adjust filler after tab switch since different tabs may have different heights
+   * @param {Object} conversationContainer - The conversation container object
+   */
+  adjustFillerAfterTabSwitch(conversationContainer) {
+    if (!conversationContainer || !conversationContainer.container) {
+      console.log('📏 No conversation container to adjust filler for tab switch');
+      return;
+    }
+
+    // Use the same logic as adjustFillerAfterContentGeneration
+    this.adjustFillerAfterContentGeneration(conversationContainer.container);
+    console.log('📏 Adjusted filler after tab switch for conversation container');
+  }
+
+  /**
    * Adjust filler when footer elements (like selection display) change size
    * @param {number} heightChange - The change in footer height (positive = grew, negative = shrunk)
    */
@@ -1449,18 +1505,22 @@ class TonePilotUIManager {
       resultSection.innerHTML = `
         <div class="result-tabs">
           <button class="result-tab active" data-tab="primary">Assistant</button>
-          <button class="result-tab" data-tab="alt1">
+          <button class="result-tab" data-tab="alt1" style="display: none;">
             <img src="../icons/branch.png" alt="Branch" style="width:10px; height:10px;" />
             <span>Steps</span>
           </button>
-          <button class="result-tab" data-tab="alt2">Alternative 2</button>
+          <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
         </div>
-        <div class="result-content">${previousResult.result}</div>
-        <div class="result-actions">
-          <button class="btn btn-secondary">
-            <img src="../icons/copy.png" alt="Copy" style="width:10px; height:10px;" />
-          </button>
+        <div id="primary-content" class="tab-content">
+          <div class="result-content">${previousResult.result}</div>
+          <div class="result-actions">
+            <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
+              <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
+            </button>
+          </div>
         </div>
+        <div id="alt1-content" class="tab-content" style="display: none;"></div>
+        <div id="alt2-content" class="tab-content" style="display: none;"></div>
       `;
 
       historyEntry.appendChild(queryDisplay);
@@ -1922,16 +1982,45 @@ class TonePilotUIManager {
 
     // Immediately switch to Alternative 1 tab and show the step indicators
     if (alt1Tab) {
+      console.log('🔍 DEBUG: About to hide all tab contents');
+
+      // Hide all tab contents first
+      conversationContainer.resultSection.querySelectorAll('.tab-content').forEach((content, index) => {
+        console.log(`🔍 DEBUG: Hiding tab content ${index}:`, content.id, 'innerHTML:', content.innerHTML);
+        content.style.display = 'none';
+      });
+
       // Make Alternative 1 tab active
       conversationContainer.resultSection.querySelectorAll('.result-tab').forEach(t => t.classList.remove('active'));
       alt1Tab.classList.add('active');
 
       // Show step indicators immediately in alt1 content
       if (conversationContainer.alt1Content) {
+        console.log('🔍 DEBUG: alt1Content before setting innerHTML:', conversationContainer.alt1Content.innerHTML);
+
         // Replace loading content with step indicators in alt1 content
         conversationContainer.alt1Content.innerHTML = initialStepHTML;
         conversationContainer.alt1Content.style.display = 'block';
         conversationContainer.alt1Content.style.visibility = 'visible';
+
+        console.log('🔍 DEBUG: alt1Content after setting innerHTML:', conversationContainer.alt1Content.innerHTML);
+
+        // Double-check that primary-content is actually hidden
+        const primaryContentAfter = conversationContainer.resultSection.querySelector('#primary-content');
+        if (primaryContentAfter) {
+          console.log('🔍 DEBUG: primaryContent display style after hiding:', primaryContentAfter.style.display);
+          console.log('🔍 DEBUG: primaryContent computed display:', window.getComputedStyle(primaryContentAfter).display);
+          console.log('🔍 DEBUG: primaryContent classList:', primaryContentAfter.classList.toString());
+          console.log('🔍 DEBUG: primaryContent id:', primaryContentAfter.id);
+          console.log('🔍 DEBUG: primaryContent innerHTML after alt1 setup:', primaryContentAfter.innerHTML);
+
+          // Check if primary-content is actually being found by the hide logic
+          const allTabContents = conversationContainer.resultSection.querySelectorAll('.tab-content');
+          console.log('🔍 DEBUG: All tab contents found:', allTabContents.length);
+          allTabContents.forEach((content, index) => {
+            console.log(`🔍 DEBUG: Tab content ${index}: id="${content.id}", display="${content.style.display}", computed="${window.getComputedStyle(content).display}"`);
+          });
+        }
 
         // Mark this container as having detail mode active so tab switching knows to handle it differently
         conversationContainer._detailModeActive = true;
