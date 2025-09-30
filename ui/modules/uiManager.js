@@ -776,7 +776,7 @@ class TonePilotUIManager {
           // Remove loading message if it exists (don't just hide it to avoid spacing issues)
           const loadingMessage = conversationContainer.primaryContent.querySelector('.loading-message');
           if (loadingMessage) {
-            loadingMessage.style.display = 'none';
+            loadingMessage.remove();
           }
 
           // Find or create result content div
