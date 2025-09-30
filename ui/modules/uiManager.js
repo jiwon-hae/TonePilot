@@ -405,9 +405,9 @@ class TonePilotUIManager {
         <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
       </div>
       <div id="primary-content" class="tab-content">
-        <div class="result-actions" style="display: none;">
+        <div class="result-actions" style="display: none;" style="height:12px">
           <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
-            <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
+            <img src="../icons/copy.png" alt="Copy" width="12" height="12"  />
           </button>
         </div>
       </div>
@@ -491,9 +491,6 @@ class TonePilotUIManager {
       // Natural sizing prevents overscroll during loading phase
       primaryContent.style.height = 'auto';
       primaryContent.style.minHeight = 'auto';
-      // Ensure primary content is visible and properly styled
-      // primaryContent.style.display = 'none';
-      // primaryContent.style.visibility = 'none';
 
       // Use natural flow instead of flex to prevent upward growth
       primaryContent.style.flex = 'none';
@@ -518,13 +515,7 @@ class TonePilotUIManager {
       });
     });
 
-    // Start loading animation in primary content (Primary tab content by default)
-    console.log('🎬 Starting loading animation in primary content');
-    console.log('🔍 DEBUG: primaryContent element:', primaryContent);
-    console.log('🔍 DEBUG: primaryContent.id:', primaryContent?.id);
-    console.log('🔍 DEBUG: primaryContent innerHTML before loading:', primaryContent?.innerHTML);
     this.startLoadingInContainer(primaryContent);
-    console.log('🔍 DEBUG: primaryContent innerHTML after loading:', primaryContent?.innerHTML);
 
     // In detail mode, the Alternative 1 tab will be activated and show step indicators instead
     if (detailMode) {
@@ -782,10 +773,10 @@ class TonePilotUIManager {
 
         // Update primary content with AI-generated text
         if (conversationContainer.primaryContent) {
-          // Hide loading message if it exists
+          // Remove loading message if it exists (don't just hide it to avoid spacing issues)
           const loadingMessage = conversationContainer.primaryContent.querySelector('.loading-message');
           if (loadingMessage) {
-            loadingMessage.style.display = 'none';
+            loadingMessage.remove();
           }
 
           // Find or create result content div
@@ -1513,9 +1504,9 @@ class TonePilotUIManager {
         </div>
         <div id="primary-content" class="tab-content">
           <div class="result-content">${previousResult.result}</div>
-          <div class="result-actions">
-            <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
-              <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
+          <div class="result-actions" style="height:12px">
+            <button class="btn btn-secondary copy-btn" title="Copy to clipboard" >
+              <img src="../icons/copy.png" alt="Copy" width="12" height="12"/>
             </button>
           </div>
         </div>

@@ -95,7 +95,7 @@ class TonePilotConversationItemManager {
         <div class="loading-message">* Chroming it…</div>
         <div class="result-actions" style="display: none;">
           <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
-            <img src="../icons/copy.png" alt="Copy" style="width:12px; height:12px;" />
+            <img src="../icons/copy.png" alt="Copy" width="12" height="12" />
           </button>
         </div>
       </div>
@@ -221,7 +221,7 @@ class TonePilotConversationItemManager {
 
     const { container, primaryContent, alt1Content, alt2Content, resultSection } = itemData;
 
-    // Hide loading message and show result content in primary tab
+    // Remove loading message and show result content in primary tab
     if (primaryContent) {
       const loadingMessage = primaryContent.querySelector('.loading-message');
       if (loadingMessage) {
