@@ -94,10 +94,10 @@ class TonePilotConversationItemManager {
       <div id="primary-content" class="tab-content">
         <div class="loading-message">* Chroming it…</div>
         <div class="result-actions" style="display: none;">
-          <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
-            <img src="../icons/copy.png" alt="Copy" width="12" height="12" />
-          </button>
-        </div>
+        <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
+          <img src="../icons/copy.png" alt="Copy" width="12" height="12" />
+        </button>
+      </div>
       </div>
       <div id="alt1-content" class="tab-content" style="display: none;"></div>
       <div id="alt2-content" class="tab-content" style="display: none;"></div>

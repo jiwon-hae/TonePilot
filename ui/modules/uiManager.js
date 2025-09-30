@@ -405,7 +405,7 @@ class TonePilotUIManager {
         <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
       </div>
       <div id="primary-content" class="tab-content">
-        <div class="result-actions" style="display: none;" style="height:12px">
+        <div class="result-actions" style="display: none;">
           <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
             <img src="../icons/copy.png" alt="Copy" width="12" height="12"  />
           </button>
@@ -776,7 +776,7 @@ class TonePilotUIManager {
           // Remove loading message if it exists (don't just hide it to avoid spacing issues)
           const loadingMessage = conversationContainer.primaryContent.querySelector('.loading-message');
           if (loadingMessage) {
-            loadingMessage.remove();
+            loadingMessage.style.display = 'none';
           }
 
           // Find or create result content div
@@ -1505,9 +1505,9 @@ class TonePilotUIManager {
         <div id="primary-content" class="tab-content">
           <div class="result-content">${previousResult.result}</div>
           <div class="result-actions" style="height:12px">
-            <button class="btn btn-secondary copy-btn" title="Copy to clipboard" >
-              <img src="../icons/copy.png" alt="Copy" width="12" height="12"/>
-            </button>
+          <button class="btn btn-secondary copy-btn" title="Copy to clipboard" >
+            <img src="../icons/copy.png" alt="Copy" width="12" height="12"/>
+          </button>
           </div>
         </div>
         <div id="alt1-content" class="tab-content" style="display: none;"></div>
