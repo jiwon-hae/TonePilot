@@ -504,10 +504,10 @@ textarea {
   background: none;
   border: none;
   border-radius: 0;
-  padding: 0 0 20px 0;
+  padding: 0;
   margin: 0;
   white-space: pre-wrap;
-  line-height: 1;
+  line-height: 1.6;
   color: var(--text-primary);
   font-size: 15px;
 }
@@ -517,7 +517,7 @@ textarea {
   background: none;
   border: none;
   border-radius: 0;
-  padding: 0 0 20px 0;
+  padding: 0;
   margin: 0;
   white-space: pre-wrap;
   line-height: 1.6;
@@ -527,14 +527,36 @@ textarea {
 }
 
 .result-actions {
-  display: flex;
   border-bottom: 1px solid rgba(179, 179, 179, 0.3);
+  padding: 0;
+  margin-top: 15px;
+  gap: 0;
+  min-width: auto;
+  min-height: auto;
 }
 
 /* Smaller copy button in result actions */
 .result-actions .btn,
 .result-actions .copy-btn {
-  padding: 5px 7px !important;
+  padding: 5px !important;
+  border-radius: 4px;
+  min-width: auto;
+  min-height: auto;
+  line-height: 1;
+  font-size: 0;
+}
+
+.result-actions .copy-btn:hover {
+  background: var(--hover-bg);
+  border-color: transparent;
+}
+
+.result-actions .copy-btn img {
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  padding: 0;
 }
 
 /* Remove bottom border from the last conversation item */
@@ -801,9 +823,6 @@ textarea {
   background: #111;
 }
 
-.step-list {
-  /* Removed old border styles - now handled in components.css */
-}
 
 .step-item {
   position: relative;
