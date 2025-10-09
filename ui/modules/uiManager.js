@@ -793,8 +793,8 @@ class TonePilotUIManager {
             }
           }
 
-          // Update result content
-          resultDiv.textContent = results.primary;
+          // Update result content (trim to remove leading/trailing whitespace)
+          resultDiv.textContent = results.primary.trim();
           resultDiv.style.display = 'block';
           resultDiv.style.height = 'auto';
           resultDiv.style.minHeight = 'auto';

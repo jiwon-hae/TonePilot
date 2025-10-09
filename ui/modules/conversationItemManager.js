@@ -221,11 +221,22 @@ class TonePilotConversationItemManager {
 
     const { container, primaryContent, alt1Content, alt2Content, resultSection } = itemData;
 
+    // Switch container from loading to content mode FIRST, before adding content
+    container.classList.remove('conversation-container-loading');
+    container.classList.add('conversation-container-content');
+
     // Remove loading message and show result content in primary tab
     if (primaryContent) {
       const loadingMessage = primaryContent.querySelector('.loading-message');
       if (loadingMessage) {
         loadingMessage.style.display = 'none';
+      }
+
+      // Remove any existing step indicators from primary content (they should only be in alt1)
+      const existingStepIndicator = primaryContent.querySelector('.step-indicator');
+      if (existingStepIndicator) {
+        console.log('⚠️ Found step indicator in primary content, removing it');
+        existingStepIndicator.remove();
       }
 
       // Add result content to primary tab
@@ -236,7 +247,7 @@ class TonePilotConversationItemManager {
         primaryContent.insertBefore(resultDiv, primaryContent.querySelector('.result-actions'));
       }
 
-      resultDiv.textContent = results.primary || '';
+      resultDiv.textContent = (results.primary || '').trim();
       resultDiv.style.display = 'block';
       resultDiv.style.height = 'auto';
       resultDiv.style.minHeight = 'auto';
@@ -247,11 +258,11 @@ class TonePilotConversationItemManager {
 
     // Populate alternative tabs with their content
     if (results.alt1 && alt1Content) {
-      alt1Content.innerHTML = `<div class="result-content">${results.alt1}</div>`;
+      alt1Content.innerHTML = `<div class="result-content">${results.alt1.trim()}</div>`;
     }
 
     if (results.alt2 && alt2Content) {
-      alt2Content.innerHTML = `<div class="result-content">${results.alt2}</div>`;
+      alt2Content.innerHTML = `<div class="result-content">${results.alt2.trim()}</div>`;
     }
 
     // Show alternative tabs if they have content
@@ -270,10 +281,6 @@ class TonePilotConversationItemManager {
     if (resultActions) {
       resultActions.style.display = 'flex';
     }
-
-    // Switch container from loading to content mode
-    container.classList.remove('conversation-container-loading');
-    container.classList.add('conversation-container-content');
 
     // Override flexbox layout to prevent upward growth
     resultSection.style.flex = 'none';
