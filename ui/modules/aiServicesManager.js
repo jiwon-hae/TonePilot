@@ -15,6 +15,8 @@ class TonePilotAIServicesManager {
     this.summarizerService = null;
     this.promptService = null;
     this.translationService = null;
+    this.searchService = null;
+    this.promptNormalizationService = null;
   }
 
   /**
@@ -30,6 +32,9 @@ class TonePilotAIServicesManager {
       this.summarizerService = new window.SummarizerService();
       this.promptService = new window.PromptService();
       this.translationService = new window.TranslationService();
+      this.searchService = new window.SearchService();
+      this.promptNormalizationService = new window.PromptNormalizationService();
+      await this.promptNormalizationService.initialize();
 
       // Debug: Check if services were created successfully
       console.log('Service initialization status:', {
@@ -154,6 +159,11 @@ class TonePilotAIServicesManager {
             { id: 'routing', title: 'Analyzing your request', status: 'active', substeps: [
               { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing', active: true }
             ]},
+            { id: 'search', title: 'Web Research', status: 'pending', substeps: [
+              { id: 'search-queries', icon: '🔍', text: 'Generating search queries', active: false },
+              { id: 'web-search', icon: '🌐', text: 'Performing web searches', active: false },
+              { id: 'context-analysis', icon: '📊', text: 'Analyzing search results', active: false }
+            ]},
             { id: 'processing', title: 'Generating AI output', status: 'pending', substeps: [
               { id: 'ai-service', icon: '⚙️', text: 'Running AI service', active: false }
             ]},
@@ -188,30 +198,69 @@ class TonePilotAIServicesManager {
       const routing = await this.semanticRouter.route(inputText);
       console.log('🎯 Routing result:', routing);
 
-      // Update step indicator in real-time - routing completed, start processing
+      // Update step indicator in real-time - routing completed
       if (detailMode) {
         try {
           this.uiManager.updateDetailModeStepIndicator('routing', 'completed');
+        } catch (error) {
+          console.error('❌ Error updating step indicator:', error);
+        }
+      }
+
+      // Perform web search if in detail mode
+      let searchContext = '';
+      if (detailMode) {
+        try {
+          this.uiManager.updateDetailModeStepIndicator('search', 'active', 'search-queries');
+          searchContext = await this.performWebSearch(inputText, routing);
+          this.uiManager.updateDetailModeStepIndicator('search', 'completed');
+        } catch (error) {
+          console.error('❌ Web search failed:', error);
+          // Continue without search context
+          this.uiManager.updateDetailModeStepIndicator('search', 'completed');
+        }
+      }
+
+      // Normalize prompt and generate follow-up steps in Plan mode
+      let normalizedPrompt = inputText;
+      let followUpSteps = '';
+      if (detailMode) {
+        try {
+          const normalizedData = await this.normalizePlanModePrompt(inputText, routing, searchContext);
+          normalizedPrompt = normalizedData.normalizedPrompt;
+          followUpSteps = normalizedData.followUpSteps;
+          console.log('📋 Normalized prompt:', normalizedPrompt);
+          console.log('📝 Follow-up steps generated:', followUpSteps);
+        } catch (error) {
+          console.error('❌ Prompt normalization failed:', error);
+          // Continue with original prompt
+        }
+      }
+
+      // Update step indicator - start processing
+      if (detailMode) {
+        try {
           this.uiManager.updateDetailModeStepIndicator('processing', 'active', 'ai-service');
         } catch (error) {
           console.error('❌ Error updating step indicator:', error);
         }
       }
 
-      // Process based on intent
+      // Process based on intent (use normalized prompt in Plan mode)
+      const effectiveInputText = detailMode ? normalizedPrompt : inputText;
       let result;
       switch (routing.intent) {
         case 'proofread':
-          result = await this.handleProofread(textToProcess, routing);
+          result = await this.handleProofread(textToProcess, routing, searchContext, followUpSteps);
           break;
         case 'summarize':
-          result = await this.handleSummarize(textToProcess, selectionData?.platform, selectionData?.context, routing);
+          result = await this.handleSummarize(textToProcess, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps);
           break;
         case 'rewrite':
-          result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context, routing);
+          result = await this.handleRewrite(textToProcess, effectiveInputText, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps);
           break;
         case 'write':
-          result = await this.handleWrite(inputText, selectionData?.text, selectionData?.platform, routing);
+          result = await this.handleWrite(effectiveInputText, selectionData?.text, selectionData?.platform, routing, searchContext, followUpSteps);
           break;
         case 'translate':
           // Extract target language from input, fallback to settings
@@ -222,10 +271,10 @@ class TonePilotAIServicesManager {
             fromSettings: targetLanguage,
             using: translationTarget
           });
-          result = await this.handleTranslation(textToProcess, translationTarget);
+          result = await this.handleTranslation(textToProcess, translationTarget, searchContext, followUpSteps);
           break;
         default:
-          result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context, routing);
+          result = await this.handleRewrite(textToProcess, effectiveInputText, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps);
           break;
       }
 
@@ -318,7 +367,7 @@ class TonePilotAIServicesManager {
    * @param {string} text - Text to proofread
    * @returns {Object} Proofread results
    */
-  async handleProofread(text, routing = null) {
+  async handleProofread(text, routing = null, searchContext = '', followUpSteps = '') {
     console.log('📝 Proofreading text...');
 
     if (!this.proofreaderService.isAvailable) {
@@ -348,7 +397,7 @@ class TonePilotAIServicesManager {
    * @param {Object} context - Additional context from platform (author, engagement, etc.)
    * @returns {Object} Summary results
    */
-  async handleSummarize(text, platform, context, routing = null) {
+  async handleSummarize(text, platform, context, routing = null, searchContext = '', followUpSteps = '') {
     console.log('📋 Summarizing text...');
     console.log('Platform:', platform);
     console.log('Context:', context);
@@ -397,11 +446,13 @@ class TonePilotAIServicesManager {
    * @param {Object} context - Additional context from platform
    * @returns {Object} Rewrite results
    */
-  async handleRewrite(text, instructions, platform, context, routing = null) {
+  async handleRewrite(text, instructions, platform, context, routing = null, searchContext = '', followUpSteps = '') {
     console.log('✏️ Rewriting text...');
     console.log('Platform:', platform);
     console.log('Context:', context);
     console.log('📝 Routing info:', routing);
+    console.log('🔍 Search context available:', searchContext ? 'Yes' : 'No');
+    console.log('📋 Follow-up steps available:', followUpSteps ? 'Yes' : 'No');
 
     // Determine tone from instructions (enhanced with routing info)
     const tone = routing?.tones?.length > 0 ? routing.tones[0] : this.extractToneFromInstructions(instructions);
@@ -423,6 +474,16 @@ class TonePilotAIServicesManager {
         }
 
         prompt += `\n\nText to process: "${text}"`;
+
+        // Add search context if available
+        if (searchContext) {
+          prompt = `${searchContext}\n\n${prompt}\n\nUse the web search results above as reference for up-to-date information.`;
+        }
+
+        // Add follow-up steps if available (Plan mode)
+        if (followUpSteps) {
+          prompt = `${prompt}\n\nFOLLOW-UP STEPS TO CONSIDER:\n${followUpSteps}\n\nConsider these steps when processing the request.`;
+        }
 
         // Add document context if relevant (resume, email templates, etc.)
         const documentContext = await this.getDocumentContext(instructions);
@@ -504,12 +565,14 @@ class TonePilotAIServicesManager {
    * @param {string} platform - Platform identifier for context-aware writing
    * @returns {Object} Write results
    */
-  async handleWrite(query, context, platform, routing = null) {
+  async handleWrite(query, context, platform, routing = null, searchContext = '', followUpSteps = '') {
     console.log('✏️ Writing text...');
     console.log('Query:', query);
     console.log('Context:', context);
     console.log('Platform:', platform);
     console.log('📝 Routing info:', routing);
+    console.log('🔍 Search context available:', searchContext ? 'Yes' : 'No');
+    console.log('📋 Follow-up steps available:', followUpSteps ? 'Yes' : 'No');
 
     // Determine tone from query (enhanced with routing info)
     const tone = routing?.tones?.length > 0 ? routing.tones[0] : this.extractToneFromQuery(query);
@@ -524,6 +587,11 @@ class TonePilotAIServicesManager {
       try {
         const promptService = new window.PromptService();
         let prompt = query;
+
+        // Add search context if available
+        if (searchContext) {
+          prompt = `${searchContext}\n\n${prompt}\n\nUse the web search results above as reference for up-to-date information.`;
+        }
 
         // Add output type instructions
         if (outputType) {
@@ -540,6 +608,11 @@ class TonePilotAIServicesManager {
         // Add context if provided
         if (context && context.trim()) {
           prompt = `${prompt}\n\nContext to consider: "${context}"`;
+        }
+
+        // Add follow-up steps if available (Plan mode)
+        if (followUpSteps) {
+          prompt = `${prompt}\n\nFOLLOW-UP STEPS TO CONSIDER:\n${followUpSteps}\n\nAddress these steps in your response.`;
         }
 
         // Add document context if relevant (resume, email templates, etc.)
@@ -572,11 +645,24 @@ class TonePilotAIServicesManager {
         platform: platform
       });
 
-      // Build enhanced context with document data if relevant (resume, email templates, etc.)
+      // Build enhanced context with search results and document data
       let enhancedContext = context;
+
+      // Add search context if available
+      if (searchContext) {
+        enhancedContext = searchContext + (enhancedContext ? `\n\n${enhancedContext}` : '');
+      }
+
+      // Add follow-up steps if available (Plan mode)
+      if (followUpSteps) {
+        const stepsContext = `\n\nFOLLOW-UP STEPS TO CONSIDER:\n${followUpSteps}\n\nAddress these steps in your response.`;
+        enhancedContext = enhancedContext ? `${enhancedContext}${stepsContext}` : stepsContext.trim();
+      }
+
+      // Add document data if relevant (resume, email templates, etc.)
       const documentContext = await this.getDocumentContext(query);
       if (documentContext) {
-        enhancedContext = context ? `${context}${documentContext}` : documentContext.trim();
+        enhancedContext = enhancedContext ? `${enhancedContext}${documentContext}` : documentContext.trim();
       }
 
       // Use Writer API
@@ -637,7 +723,7 @@ class TonePilotAIServicesManager {
    * @param {string} targetLanguage - Target language code
    * @returns {Object} Translation results
    */
-  async handleTranslation(text, targetLanguage) {
+  async handleTranslation(text, targetLanguage, searchContext = '', followUpSteps = '') {
     console.log('🌐 Translating text...');
     console.log('Text:', text);
     console.log('Target language:', targetLanguage);
@@ -1385,6 +1471,109 @@ Please provide an improved version that addresses the suggestions while maintain
   }
 
   /**
+   * Normalize user prompt for Plan mode and generate follow-up steps
+   * Uses the PromptNormalizationService
+   * @param {string} userInput - Original user input
+   * @param {Object} routing - Routing information
+   * @param {string} searchContext - Web search results context
+   * @returns {Promise<Object>} Normalized prompt and follow-up steps
+   */
+  async normalizePlanModePrompt(userInput, routing, searchContext = '') {
+    try {
+      console.log('📋 Normalizing prompt for Plan mode using PromptNormalizationService');
+
+      // Use the dedicated normalization service
+      const result = await this.promptNormalizationService.normalizeAndGenerateSteps(
+        userInput,
+        routing,
+        searchContext
+      );
+
+      console.log('✅ Prompt normalized and steps generated via service');
+      return result;
+
+    } catch (error) {
+      console.error('❌ Prompt normalization failed:', error);
+      // Return original input if normalization fails
+      return {
+        normalizedPrompt: userInput,
+        followUpSteps: ''
+      };
+    }
+  }
+
+  /**
+   * Perform web search in Plan mode
+   * @param {string} userQuery - User's query
+   * @param {Object} routing - Routing information
+   * @returns {Promise<string>} Search context for AI
+   */
+  async performWebSearch(userQuery, routing) {
+    try {
+      console.log('🔍 Starting web search for Plan mode');
+
+      // Load search service config from storage
+      await this.searchService.loadConfigFromStorage();
+
+      if (!this.searchService.isReady()) {
+        console.warn('⚠️ Search service not configured, skipping web search');
+        return '';
+      }
+
+      // Generate search queries based on user input using AI
+      this.uiManager.updateDetailModeStepIndicator('search', 'active', 'search-queries');
+
+      const searchQueriesPrompt = `Based on the following user query, generate 1-3 highly relevant web search queries that would help provide accurate, up-to-date information to answer or fulfill the request.
+
+USER QUERY: "${userQuery}"
+INTENT: ${routing.intent}
+${routing.outputType ? `OUTPUT TYPE: ${routing.outputType}` : ''}
+
+Return ONLY the search queries, one per line, without numbering or explanations.`;
+
+      const queryGenerator = new window.PromptService();
+      const searchQueriesText = await queryGenerator.send(searchQueriesPrompt);
+      const searchQueries = searchQueriesText
+        .trim()
+        .split('\n')
+        .filter(q => q.trim().length > 0)
+        .slice(0, 3);
+
+      console.log('🔍 Generated search queries:', searchQueries);
+
+      // Perform web searches
+      this.uiManager.updateDetailModeStepIndicator('search', 'active', 'web-search');
+
+      const searchResults = await this.searchService.multiSearch(searchQueries, {
+        numResults: 3 // 3 results per query
+      });
+
+      console.log('✅ Search results retrieved:', searchResults.length);
+
+      // Analyze and summarize search results
+      this.uiManager.updateDetailModeStepIndicator('search', 'active', 'context-analysis');
+
+      let combinedContext = 'WEB SEARCH RESULTS:\n\n';
+
+      searchResults.forEach((result, index) => {
+        if (result.items && result.items.length > 0) {
+          combinedContext += `Query: "${result.query}"\n`;
+          combinedContext += this.searchService.createSearchSummary(result, 3);
+          combinedContext += '\n';
+        }
+      });
+
+      console.log('📊 Search context created, length:', combinedContext.length);
+
+      return combinedContext;
+
+    } catch (error) {
+      console.error('❌ Web search failed:', error);
+      return ''; // Return empty context on failure
+    }
+  }
+
+  /**
    * Get service status for debugging
    * @returns {Object} Service status information
    */
@@ -1396,6 +1585,8 @@ Please provide an improved version that addresses the suggestions while maintain
       proofreaderService: Boolean(this.proofreaderService),
       rewriterService: Boolean(this.rewriterService),
       summarizerService: Boolean(this.summarizerService),
+      searchService: Boolean(this.searchService),
+      promptNormalizationService: Boolean(this.promptNormalizationService),
       ready: this.isReady()
     };
   }

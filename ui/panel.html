@@ -219,6 +219,24 @@
               </select>
             </div>
           </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-title">Google Search API Key</label>
+              <div class="setting-description">API key for web search in Plan mode</div>
+            </div>
+            <div class="setting-control">
+              <input type="password" id="googleSearchApiKey" class="setting-input" placeholder="Enter API key">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-title">Google Search Engine ID</label>
+              <div class="setting-description">Custom Search Engine ID (cx)</div>
+            </div>
+            <div class="setting-control">
+              <input type="text" id="googleSearchEngineId" class="setting-input" placeholder="Enter Search Engine ID">
+            </div>
+          </div>
         </div>
       </div>
       <div class="settings-popup-footer">
@@ -331,6 +349,8 @@
   <script src="../services/writerService.js"></script>
   <script src="../services/translationService.js"></script>
   <script src="../services/documentService.js"></script>
+  <script src="../services/searchService.js"></script>
+  <script src="../services/promptNormalizationService.js"></script>
 
   <!-- UI Modules (load before main panel) -->
   <script src="modules/constants.js"></script>

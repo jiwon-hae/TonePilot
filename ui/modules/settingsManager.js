@@ -83,7 +83,9 @@ class TonePilotSettingsManager {
       defaultTone: 'as-is',
       enableNotifications: true,
       autoCloseResults: false,
-      preserveFormatting: true
+      preserveFormatting: true,
+      googleSearchApiKey: '',
+      googleSearchEngineId: ''
     };
   }
 
@@ -117,6 +119,18 @@ class TonePilotSettingsManager {
     // Update target language select
     if (this.uiManager.elements.targetLanguageSelect) {
       this.uiManager.elements.targetLanguageSelect.value = this.settings.targetLanguage || 'en';
+    }
+
+    // Update Google Search API Key
+    const googleSearchApiKeyInput = document.getElementById('googleSearchApiKey');
+    if (googleSearchApiKeyInput) {
+      googleSearchApiKeyInput.value = this.settings.googleSearchApiKey || '';
+    }
+
+    // Update Google Search Engine ID
+    const googleSearchEngineIdInput = document.getElementById('googleSearchEngineId');
+    if (googleSearchEngineIdInput) {
+      googleSearchEngineIdInput.value = this.settings.googleSearchEngineId || '';
     }
 
     console.log('🎛️ Settings UI updated');
@@ -207,6 +221,18 @@ class TonePilotSettingsManager {
     if (this.uiManager.elements.targetLanguageSelect) {
       settings.targetLanguage = this.uiManager.elements.targetLanguageSelect.value ||
                                 window.TONEPILOT_CONSTANTS.DEFAULTS.TARGET_LANGUAGE;
+    }
+
+    // Google Search API Key
+    const googleSearchApiKeyInput = document.getElementById('googleSearchApiKey');
+    if (googleSearchApiKeyInput) {
+      settings.googleSearchApiKey = googleSearchApiKeyInput.value.trim();
+    }
+
+    // Google Search Engine ID
+    const googleSearchEngineIdInput = document.getElementById('googleSearchEngineId');
+    if (googleSearchEngineIdInput) {
+      settings.googleSearchEngineId = googleSearchEngineIdInput.value.trim();
     }
 
     return settings;

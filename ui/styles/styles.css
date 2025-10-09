@@ -207,11 +207,36 @@ textarea {
   flex-direction: column;
 }
 
+.conversation-container-loading .tab-content {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
 .conversation-container-loading .result-content {
   flex: 1;
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
+}
+
+/* Content-sized container after generation - reset flex behavior */
+.conversation-container-content .result-section {
+  flex: none;
+  display: block;
+}
+
+.conversation-container-content .tab-content {
+  flex: none;
+  display: block;
+  height: auto;
+}
+
+.conversation-container-content .result-content {
+  flex: none;
+  display: block;
+  height: auto;
 }
 
 /* Content-sized container after generation */
@@ -501,6 +526,7 @@ textarea {
 }
 
 .result-content {
+  display: block;
   background: none;
   border: none;
   border-radius: 0;
@@ -510,6 +536,11 @@ textarea {
   line-height: 1.6;
   color: var(--text-primary);
   font-size: 15px;
+}
+
+.result-content:first-child {
+  margin-top: 0;
+  padding-top: 0;
 }
 
 /* New tab content containers */
@@ -528,7 +559,7 @@ textarea {
 
 .result-actions {
   border-bottom: 1px solid rgba(179, 179, 179, 0.3);
-  padding: 0;
+  padding: 0 0 15px 0;
   margin-top: 15px;
   gap: 0;
   min-width: auto;
@@ -616,6 +647,7 @@ textarea {
 }
 
 .loading-message {
+  display: block;
   font-size: 15px;
   font-weight: 400;
   color: var(--loading-text);
