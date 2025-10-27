@@ -1620,8 +1620,15 @@ class TonePilotUIManager {
         return;
       }
 
-      // Get the text content from the active tab
-      const textToCopy = activeTabContent.textContent || activeTabContent.innerText || '';
+      // Get ONLY the result-content div, not the entire tab-content (which includes buttons, loading messages, etc.)
+      const resultContent = activeTabContent.querySelector('.result-content');
+      if (!resultContent) {
+        console.warn('No result-content found in active tab');
+        return;
+      }
+
+      // Get the text content from just the result content
+      const textToCopy = resultContent.textContent || resultContent.innerText || '';
 
       if (!textToCopy.trim()) {
         console.warn('No content to copy');
