@@ -650,7 +650,6 @@ class TonePilotUIManager {
 
     // DISABLE SCROLLING completely during content changes to prevent any movement
     const mainContent = document.querySelector('.main-content');
-    const scrollTopBeforeLoad = mainContent ? mainContent.scrollTop : 0;
 
     if (mainContent) {
       mainContent.style.overflow = 'hidden';
@@ -658,8 +657,7 @@ class TonePilotUIManager {
     }
 
     console.log('📍 BEFORE content load - scroll disabled:', {
-      scrollTop: scrollTopBeforeLoad,
-      strategy: 'Disable scrolling completely during content changes'
+      strategy: 'Disable scrolling during content changes, no restoration needed'
     });
 
     // Get detail mode status first (needed throughout the method)
@@ -839,14 +837,12 @@ class TonePilotUIManager {
     // This happens after a short delay to ensure all layout is settled
     setTimeout(() => {
       if (mainContent) {
-        // Restore the original scroll position before re-enabling
-        mainContent.scrollTop = scrollTopBeforeLoad;
-        // Re-enable scrolling
+        // Re-enable scrolling without changing position
+        // The scroll stays at the header position from auto-scroll
         mainContent.style.overflow = '';
 
         console.log('🔓 Re-enabled scrolling after content generation complete:', {
-          restoredScrollTop: scrollTopBeforeLoad,
-          strategy: 'No flickering - scroll was disabled during all changes'
+          strategy: 'Scroll stays at header position, no restoration needed'
         });
       }
     }, 50); // Small delay to ensure all DOM changes are complete
@@ -1178,8 +1174,8 @@ class TonePilotUIManager {
         });
       }
 
-      // Scroll to show new content (previous items scroll out of view)
-      this.scrollToEnd();
+      // Auto-scroll to position new conversation header at the top of viewport
+      this.scrollToNewConversation(newContainer);
     });
   }
 
@@ -1396,6 +1392,41 @@ class TonePilotUIManager {
 
         mainContent.scrollTo({
           top: maxScroll,
+          behavior: 'smooth'
+        });
+      });
+    });
+  }
+
+  /**
+   * Scroll to position new conversation at the top of viewport
+   * Called when a new submission is made
+   */
+  scrollToNewConversation(newContainer) {
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent || !newContainer) return;
+
+    // Wait for layout to settle after filler is added
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // Get the position of the new container
+        const containerRect = newContainer.getBoundingClientRect();
+        const mainContentRect = mainContent.getBoundingClientRect();
+
+        // Calculate how much to scroll to position container at top
+        const scrollOffset = containerRect.top - mainContentRect.top;
+        const targetScrollTop = mainContent.scrollTop + scrollOffset;
+
+        console.log('📍 Scrolling to new conversation:', {
+          containerTop: containerRect.top,
+          mainContentTop: mainContentRect.top,
+          currentScrollTop: mainContent.scrollTop,
+          scrollOffset: scrollOffset,
+          targetScrollTop: targetScrollTop
+        });
+
+        mainContent.scrollTo({
+          top: targetScrollTop,
           behavior: 'smooth'
         });
       });
