@@ -29,6 +29,9 @@ class TonePilotPanel {
       // Legacy storage for backward compatibility
       this.storage = window.StorageManager ? new window.StorageManager() : null;
 
+      // Memory service for context management
+      this.memoryService = null;
+
       console.log('✅ Managers initialized');
     } catch (error) {
       console.error('❌ Manager initialization failed:', error);
@@ -63,6 +66,9 @@ class TonePilotPanel {
       await this.messageHandler.initialize();
       await this.aiServicesManager.initializeServices();
 
+      // Initialize memory service for context management
+      await this.initializeMemoryService();
+
       // Request AI API probe from background (don't block initialization)
       this.requestAPIProbe().catch(error => {
         console.warn('API probe failed, continuing initialization:', error);
@@ -92,6 +98,28 @@ class TonePilotPanel {
       }
     } catch (error) {
       console.warn('Storage initialization failed:', error);
+    }
+  }
+
+  /**
+   * Initialize memory service with error handling
+   */
+  async initializeMemoryService() {
+    try {
+      if (window.MemoryService) {
+        this.memoryService = new window.MemoryService();
+        await this.memoryService.initialize();
+        console.log('✅ Memory service initialized');
+
+        // Log stats
+        const stats = this.memoryService.getStats();
+        console.log('📊 Memory stats:', stats);
+      } else {
+        console.warn('⚠️ Memory service not available');
+      }
+    } catch (error) {
+      console.warn('Memory service initialization failed:', error);
+      this.memoryService = null;
     }
   }
 
@@ -398,6 +426,32 @@ class TonePilotPanel {
             type: results.type
           }
         });
+      }
+
+      // Save to memory service with summarized content
+      // Only save if we have valid content (not errors or empty responses)
+      if (this.memoryService && results && results.primary) {
+        const content = results.primary.trim();
+
+        // Validate we have actual content before saving
+        if (content.length > 0) {
+          try {
+            await this.memoryService.addConversation(inputText, content, {
+              intent: results.intent || 'unknown',
+              format: results.type || 'unknown',
+              tone: results.tone || 'unknown',
+              service: results.service || 'unknown',
+              via: results.via || 'unknown'
+            });
+            console.log('💾 Conversation saved to memory');
+          } catch (error) {
+            console.warn('⚠️ Failed to save to memory:', error);
+          }
+        } else {
+          console.warn('⚠️ Skipping memory save - empty content');
+        }
+      } else if (this.memoryService) {
+        console.warn('⚠️ Skipping memory save - no valid results');
       }
 
       console.log('✅ Text processing completed');
@@ -928,6 +982,47 @@ class TonePilotPanel {
     console.error('❌ Initialization failed:', error);
     this.uiManager.updateStatus('error', 'Initialization Failed');
     this.uiManager.showError(`Initialization failed: ${error.message}`);
+  }
+
+  /**
+   * Memory service helper methods
+   */
+
+  /**
+   * Get recent conversation context
+   * @param {number} count - Number of recent conversations
+   * @returns {string} - Formatted context string
+   */
+  getConversationContext(count = 5) {
+    if (!this.memoryService) {
+      console.warn('⚠️ Memory service not available');
+      return '';
+    }
+    return this.memoryService.getContextString(count);
+  }
+
+  /**
+   * Get memory statistics
+   * @returns {Object} - Memory stats
+   */
+  getMemoryStats() {
+    if (!this.memoryService) {
+      console.warn('⚠️ Memory service not available');
+      return null;
+    }
+    return this.memoryService.getStats();
+  }
+
+  /**
+   * Clear all conversation memory
+   */
+  async clearMemory() {
+    if (!this.memoryService) {
+      console.warn('⚠️ Memory service not available');
+      return;
+    }
+    await this.memoryService.clearMemory();
+    console.log('✅ Memory cleared');
   }
 
   /**
