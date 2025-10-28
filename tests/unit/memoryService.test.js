@@ -32,14 +32,14 @@ describe('MemoryService', () => {
     resetAllMocks();
     memoryService = new window.MemoryService();
 
-    // Mock summarizer to avoid actual AI calls
+    await memoryService.initialize();
+
+    // Mock summarizer AFTER initialize to avoid it being overwritten
     memoryService.summarizerService = {
       isAvailable: true,
       initialize: jest.fn(() => Promise.resolve()),
       summarize: jest.fn((text) => Promise.resolve(`Summarized: ${text.substring(0, 50)}...`))
     };
-
-    await memoryService.initialize();
   });
 
   describe('Initialization', () => {
