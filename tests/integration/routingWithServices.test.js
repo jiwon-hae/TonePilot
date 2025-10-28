@@ -35,7 +35,6 @@ describe('Integration: Routing + Services', () => {
     resetAllMocks();
 
     router = new window.SemanticRouter();
-    await router.initialize();
 
     writerService = new window.WriterService();
     await writerService.initialize();
@@ -49,7 +48,7 @@ describe('Integration: Routing + Services', () => {
       const query = 'write an email about project updates';
 
       // Step 1: Route the query
-      const routing = router.route(query);
+      const routing = await router.route(query);
 
       expect(routing.intent).toBe('write');
       expect(routing.outputType).toBe('email');
@@ -67,7 +66,7 @@ describe('Integration: Routing + Services', () => {
     test('should handle formal email generation', async () => {
       const query = 'write a formal email to my manager about deadline extension';
 
-      const routing = router.route(query);
+      const routing = await router.route(query);
       expect(routing.tones).toContain('formal');
 
       const result = await writerService.write(query, { tone: 'formal' });
@@ -77,7 +76,7 @@ describe('Integration: Routing + Services', () => {
     test('should handle cover letter generation', async () => {
       const query = 'write a cover letter for software engineer position';
 
-      const routing = router.route(query);
+      const routing = await router.route(query);
       expect(routing.outputType).toBe('letter');
 
       const result = await writerService.write(query);
@@ -91,7 +90,7 @@ describe('Integration: Routing + Services', () => {
       const textToRewrite = 'hey can u send me the docs';
 
       // Step 1: Route the query
-      const routing = router.route(query);
+      const routing = await router.route(query);
 
       expect(routing.intent).toBe('rewrite');
 
@@ -105,7 +104,7 @@ describe('Integration: Routing + Services', () => {
 
     test('should handle tone-specific rewriting', async () => {
       const query = 'rewrite this in a diplomatic tone';
-      const routing = router.route(query);
+      const routing = await router.route(query);
 
       expect(routing.tones).toContain('diplomatic');
 
@@ -121,7 +120,7 @@ describe('Integration: Routing + Services', () => {
     test('should handle multi-aspect query correctly', async () => {
       const query = 'write a formal professional email to CEO about quarterly results';
 
-      const routing = router.route(query);
+      const routing = await router.route(query);
 
       expect(routing.intent).toBe('write');
       expect(routing.outputType).toBe('email');
@@ -152,7 +151,7 @@ describe('Integration: Routing + Services', () => {
 
   describe('Service Selection Based on Routing', () => {
     test('should select WriterService for write intent', async () => {
-      const routing = router.route('create a blog post');
+      const routing = await router.route('create a blog post');
 
       expect(routing.intent).toBe('write');
 
@@ -164,7 +163,7 @@ describe('Integration: Routing + Services', () => {
     });
 
     test('should select RewriterService for rewrite intent', async () => {
-      const routing = router.route('improve this paragraph');
+      const routing = await router.route('improve this paragraph');
 
       expect(routing.intent).toBe('rewrite');
 
@@ -179,7 +178,7 @@ describe('Integration: Routing + Services', () => {
       // Make WriterService unavailable
       writerService.isAvailable = false;
 
-      const routing = router.route('write an email');
+      const routing = await router.route('write an email');
       expect(routing.intent).toBe('write');
 
       // In real implementation, would fallback to alternative service
@@ -191,7 +190,7 @@ describe('Integration: Routing + Services', () => {
   describe('Routing Metadata Usage', () => {
     test('should use routing tone in service call', async () => {
       const query = 'write a casual friendly email';
-      const routing = router.route(query);
+      const routing = await router.route(query);
 
       expect(routing.tones).toEqual(expect.arrayContaining(['casual', 'friendly']));
 
@@ -204,7 +203,7 @@ describe('Integration: Routing + Services', () => {
 
     test('should use routing output type in service call', async () => {
       const query = 'write a LinkedIn post';
-      const routing = router.route(query);
+      const routing = await router.route(query);
 
       expect(routing.outputType).toBe('post');
 
@@ -217,9 +216,9 @@ describe('Integration: Routing + Services', () => {
   });
 
   describe('Error Handling in Integration', () => {
-    test('should handle routing errors', () => {
+    test('should handle routing errors', async () => {
       // Empty input should still route (default to rewrite)
-      const routing = router.route('');
+      const routing = await router.route('');
       expect(routing).toBeDefined();
       expect(routing.intent).toBeDefined();
     });

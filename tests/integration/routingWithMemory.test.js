@@ -40,7 +40,6 @@ describe('Integration: Routing + Services + Memory', () => {
     resetAllMocks();
 
     router = new window.SemanticRouter();
-    await router.initialize();
 
     writerService = new window.WriterService();
     await writerService.initialize();
@@ -61,7 +60,7 @@ describe('Integration: Routing + Services + Memory', () => {
   describe('Memory Context Integration', () => {
     test('should save conversation to memory after successful processing', async () => {
       const query = 'write an email about project updates';
-      const routing = router.route(query);
+      const routing = await router.route(query);
 
       expect(routing.intent).toBe('write');
 
@@ -134,7 +133,7 @@ describe('Integration: Routing + Services + Memory', () => {
     test('should complete full flow: route → process → save → retrieve → use context', async () => {
       // Step 1: First query - write an email
       const query1 = 'write a formal email to manager about vacation';
-      const routing1 = router.route(query1);
+      const routing1 = await router.route(query1);
 
       expect(routing1.intent).toBe('write');
       expect(routing1.tones).toContain('formal');
@@ -156,7 +155,7 @@ describe('Integration: Routing + Services + Memory', () => {
       expect(context).toBeDefined();
       expect(context).toContain('vacation'); // Should retrieve previous vacation email
 
-      const routing2 = router.route(query2);
+      const routing2 = await router.route(query2);
       const result2 = await writerService.write(query2);
 
       // Save second conversation
@@ -180,7 +179,7 @@ describe('Integration: Routing + Services + Memory', () => {
       const query = 'write a detailed project report';
       const longContent = 'a'.repeat(600); // Exceeds 500 char threshold
 
-      const routing = router.route(query);
+      const routing = await router.route(query);
       expect(routing.intent).toBe('write');
 
       // Simulate AI service result
@@ -303,7 +302,7 @@ describe('Integration: Routing + Services + Memory', () => {
 
       // Complex query that should benefit from context
       const complexQuery = 'write a follow-up email for the software engineer application';
-      const routing = router.route(complexQuery);
+      const routing = await router.route(complexQuery);
 
       expect(routing.intent).toBe('write');
       expect(routing.outputType).toBe('email');
