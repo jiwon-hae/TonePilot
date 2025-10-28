@@ -253,6 +253,213 @@ class MemoryService extends window.BaseService {
   }
 
   /**
+   * Retrieve relevant conversations based on query
+   * Uses chronological patterns and BM25 semantic similarity
+   *
+   * @param {string} query - User's current query
+   * @param {number} topK - Number of relevant conversations to return
+   * @returns {Array} - Array of relevant memory items with scores
+   */
+  retrieveRelevant(query, topK = 5) {
+    this.ensureInitialized();
+    this.validateNonEmptyString(query, 'query');
+
+    if (this.memoryStore.length === 0) {
+      this.log('📚', 'No memory to retrieve from');
+      return [];
+    }
+
+    // 1. Check if query has chronological patterns
+    const isChronological = this.detectChronologicalQuery(query);
+
+    if (isChronological) {
+      // For chronological queries, return recent items in reverse chronological order
+      const recentCount = Math.min(topK, this.memoryStore.length);
+      const recent = this.memoryStore.slice(-recentCount).reverse();
+
+      this.log('🕐', 'Chronological query detected, returning', recent.length, 'recent items');
+
+      return recent.map((item, index) => ({
+        ...item,
+        score: 1.0 - (index * 0.1), // Descending scores for recency
+        retrievalType: 'chronological'
+      }));
+    }
+
+    // 2. For semantic queries, use BM25 scoring
+    const scoredItems = this.memoryStore.map(item => {
+      const score = this.calculateBM25Score(query, item);
+      return {
+        ...item,
+        score: score,
+        retrievalType: 'semantic'
+      };
+    });
+
+    // 3. Sort by score (descending) and return top K
+    const sorted = scoredItems.sort((a, b) => b.score - a.score);
+    const topResults = sorted.slice(0, topK);
+
+    this.log('🔍', 'Retrieved', topResults.length, 'semantically relevant items');
+
+    return topResults;
+  }
+
+  /**
+   * Detect if query is asking for chronological/recent information
+   * @param {string} query - User query
+   * @returns {boolean} - True if chronological query
+   */
+  detectChronologicalQuery(query) {
+    const chronologicalPatterns = [
+      /\b(previous|last|recent|earlier|before|past|ago)\b/i,
+      /\b(what (did|was) (i|we))\b/i,
+      /\b(remind me|recall|remember)\b/i,
+      /\b(history|earlier conversation)\b/i,
+      /\b(just now|moments ago|a while ago)\b/i
+    ];
+
+    return chronologicalPatterns.some(pattern => pattern.test(query));
+  }
+
+  /**
+   * Calculate BM25 score between query and conversation item
+   * BM25 is a ranking function that scores documents based on term frequency
+   *
+   * @param {string} query - User query
+   * @param {Object} item - Memory item (with query and content fields)
+   * @returns {number} - BM25 score
+   */
+  calculateBM25Score(query, item) {
+    // BM25 parameters
+    const k1 = 1.5; // Term frequency saturation parameter
+    const b = 0.75; // Length normalization parameter
+
+    // Combine item query and content for matching
+    const document = `${item.query} ${item.content}`.toLowerCase();
+    const queryTerms = this.tokenize(query.toLowerCase());
+    const docTerms = this.tokenize(document);
+
+    // Calculate average document length
+    const avgDocLength = this.getAverageDocLength();
+    const docLength = docTerms.length;
+
+    // Calculate document term frequencies
+    const docTermFreqs = this.getTermFrequencies(docTerms);
+
+    // Calculate BM25 score
+    let score = 0;
+
+    for (const term of queryTerms) {
+      const tf = docTermFreqs[term] || 0;
+      if (tf === 0) continue;
+
+      // Calculate IDF (Inverse Document Frequency)
+      const idf = this.calculateIDF(term);
+
+      // BM25 formula
+      const numerator = tf * (k1 + 1);
+      const denominator = tf + k1 * (1 - b + b * (docLength / avgDocLength));
+
+      score += idf * (numerator / denominator);
+    }
+
+    return score;
+  }
+
+  /**
+   * Tokenize text into terms (simple whitespace tokenization)
+   * @param {string} text - Text to tokenize
+   * @returns {Array<string>} - Array of terms
+   */
+  tokenize(text) {
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ') // Remove punctuation
+      .split(/\s+/)
+      .filter(term => term.length > 2); // Filter out very short terms
+  }
+
+  /**
+   * Get term frequencies in document
+   * @param {Array<string>} terms - Array of terms
+   * @returns {Object} - Term frequency map
+   */
+  getTermFrequencies(terms) {
+    const freqs = {};
+    for (const term of terms) {
+      freqs[term] = (freqs[term] || 0) + 1;
+    }
+    return freqs;
+  }
+
+  /**
+   * Calculate average document length across all memory items
+   * @returns {number} - Average document length
+   */
+  getAverageDocLength() {
+    if (this.memoryStore.length === 0) return 0;
+
+    const totalLength = this.memoryStore.reduce((sum, item) => {
+      const doc = `${item.query} ${item.content}`;
+      return sum + this.tokenize(doc.toLowerCase()).length;
+    }, 0);
+
+    return totalLength / this.memoryStore.length;
+  }
+
+  /**
+   * Calculate IDF (Inverse Document Frequency) for a term
+   * IDF measures how unique/rare a term is across all documents
+   *
+   * @param {string} term - Term to calculate IDF for
+   * @returns {number} - IDF score
+   */
+  calculateIDF(term) {
+    const N = this.memoryStore.length; // Total number of documents
+
+    // Count documents containing the term
+    let docsWithTerm = 0;
+    for (const item of this.memoryStore) {
+      const doc = `${item.query} ${item.content}`.toLowerCase();
+      if (doc.includes(term)) {
+        docsWithTerm++;
+      }
+    }
+
+    // IDF formula: log((N - df + 0.5) / (df + 0.5) + 1)
+    // Adding smoothing to avoid division by zero
+    if (docsWithTerm === 0) return 0;
+
+    return Math.log((N - docsWithTerm + 0.5) / (docsWithTerm + 0.5) + 1);
+  }
+
+  /**
+   * Get context string from retrieved relevant conversations
+   * @param {string} query - User query
+   * @param {number} topK - Number of relevant items to retrieve
+   * @returns {string} - Formatted context string
+   */
+  getRelevantContextString(query, topK = 5) {
+    this.ensureInitialized();
+
+    const relevant = this.retrieveRelevant(query, topK);
+    if (relevant.length === 0) {
+      return '';
+    }
+
+    const contextLines = relevant.map((item, index) => {
+      const scoreLabel = item.retrievalType === 'chronological' ? 'Recent' : `Score: ${item.score.toFixed(2)}`;
+      return `[${index + 1}] (${scoreLabel})\nQ: ${item.query}\nA: ${item.content}`;
+    });
+
+    const contextString = `RELEVANT CONVERSATION CONTEXT:\n\n${contextLines.join('\n\n')}`;
+
+    this.log('📋', 'Generated relevant context from', relevant.length, 'conversations');
+    return contextString;
+  }
+
+  /**
    * Clear all conversation memory
    */
   async clearMemory() {

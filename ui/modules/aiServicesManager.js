@@ -144,9 +144,10 @@ class TonePilotAIServicesManager {
    * Process text input through semantic routing and AI services
    * @param {string} inputText - Text to process
    * @param {Object} selectionData - Selected text data
+   * @param {string} conversationContext - Relevant conversation history context
    * @returns {Object} Processing results
    */
-  async processText(inputText, selectionData) {
+  async processText(inputText, selectionData, conversationContext = '') {
     try {
       this.uiManager.hideError();
 
@@ -251,16 +252,16 @@ class TonePilotAIServicesManager {
       let result;
       switch (routing.intent) {
         case 'proofread':
-          result = await this.handleProofread(textToProcess, routing, searchContext, followUpSteps);
+          result = await this.handleProofread(textToProcess, routing, searchContext, followUpSteps, conversationContext);
           break;
         case 'summarize':
-          result = await this.handleSummarize(textToProcess, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps);
+          result = await this.handleSummarize(textToProcess, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps, conversationContext);
           break;
         case 'rewrite':
-          result = await this.handleRewrite(textToProcess, effectiveInputText, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps);
+          result = await this.handleRewrite(textToProcess, effectiveInputText, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps, conversationContext);
           break;
         case 'write':
-          result = await this.handleWrite(effectiveInputText, selectionData?.text, selectionData?.platform, routing, searchContext, followUpSteps);
+          result = await this.handleWrite(effectiveInputText, selectionData?.text, selectionData?.platform, routing, searchContext, followUpSteps, conversationContext);
           break;
         case 'translate':
           // Extract target language from input, fallback to settings
@@ -271,10 +272,10 @@ class TonePilotAIServicesManager {
             fromSettings: targetLanguage,
             using: translationTarget
           });
-          result = await this.handleTranslation(textToProcess, translationTarget, searchContext, followUpSteps);
+          result = await this.handleTranslation(textToProcess, translationTarget, searchContext, followUpSteps, conversationContext);
           break;
         default:
-          result = await this.handleRewrite(textToProcess, effectiveInputText, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps);
+          result = await this.handleRewrite(textToProcess, effectiveInputText, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps, conversationContext);
           break;
       }
 
@@ -367,8 +368,11 @@ class TonePilotAIServicesManager {
    * @param {string} text - Text to proofread
    * @returns {Object} Proofread results
    */
-  async handleProofread(text, routing = null, searchContext = '', followUpSteps = '') {
+  async handleProofread(text, routing = null, searchContext = '', followUpSteps = '', conversationContext = '') {
     console.log('📝 Proofreading text...');
+    if (conversationContext) {
+      console.log('📚 Using conversation context for proofreading');
+    }
 
     if (!this.proofreaderService.isAvailable) {
       console.warn('⚠️ Proofreader service not available, using fallback');
@@ -397,8 +401,11 @@ class TonePilotAIServicesManager {
    * @param {Object} context - Additional context from platform (author, engagement, etc.)
    * @returns {Object} Summary results
    */
-  async handleSummarize(text, platform, context, routing = null, searchContext = '', followUpSteps = '') {
+  async handleSummarize(text, platform, context, routing = null, searchContext = '', followUpSteps = '', conversationContext = '') {
     console.log('📋 Summarizing text...');
+    if (conversationContext) {
+      console.log('📚 Using conversation context for summarization');
+    }
     console.log('Platform:', platform);
     console.log('Context:', context);
 
@@ -446,8 +453,11 @@ class TonePilotAIServicesManager {
    * @param {Object} context - Additional context from platform
    * @returns {Object} Rewrite results
    */
-  async handleRewrite(text, instructions, platform, context, routing = null, searchContext = '', followUpSteps = '') {
+  async handleRewrite(text, instructions, platform, context, routing = null, searchContext = '', followUpSteps = '', conversationContext = '') {
     console.log('✏️ Rewriting text...');
+    if (conversationContext) {
+      console.log('📚 Using conversation context for rewriting');
+    }
     console.log('Platform:', platform);
     console.log('Context:', context);
     console.log('📝 Routing info:', routing);
@@ -478,6 +488,11 @@ class TonePilotAIServicesManager {
         // Add search context if available
         if (searchContext) {
           prompt = `${searchContext}\n\n${prompt}\n\nUse the web search results above as reference for up-to-date information.`;
+        }
+
+        // Add conversation context if available
+        if (conversationContext) {
+          prompt = `${conversationContext}\n\n${prompt}\n\nConsider the conversation history above when rewriting.`;
         }
 
         // Add follow-up steps if available (Plan mode)
@@ -565,8 +580,11 @@ class TonePilotAIServicesManager {
    * @param {string} platform - Platform identifier for context-aware writing
    * @returns {Object} Write results
    */
-  async handleWrite(query, context, platform, routing = null, searchContext = '', followUpSteps = '') {
+  async handleWrite(query, context, platform, routing = null, searchContext = '', followUpSteps = '', conversationContext = '') {
     console.log('✏️ Writing text...');
+    if (conversationContext) {
+      console.log('📚 Using conversation context for writing');
+    }
     console.log('Query:', query);
     console.log('Context:', context);
     console.log('Platform:', platform);
@@ -591,6 +609,11 @@ class TonePilotAIServicesManager {
         // Add search context if available
         if (searchContext) {
           prompt = `${searchContext}\n\n${prompt}\n\nUse the web search results above as reference for up-to-date information.`;
+        }
+
+        // Add conversation context if available
+        if (conversationContext) {
+          prompt = `${conversationContext}\n\n${prompt}\n\nConsider the conversation history above when formulating your response.`;
         }
 
         // Add output type instructions
@@ -723,8 +746,11 @@ class TonePilotAIServicesManager {
    * @param {string} targetLanguage - Target language code
    * @returns {Object} Translation results
    */
-  async handleTranslation(text, targetLanguage, searchContext = '', followUpSteps = '') {
+  async handleTranslation(text, targetLanguage, searchContext = '', followUpSteps = '', conversationContext = '') {
     console.log('🌐 Translating text...');
+    if (conversationContext) {
+      console.log('📚 Using conversation context for translation');
+    }
     console.log('Text:', text);
     console.log('Target language:', targetLanguage);
 

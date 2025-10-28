@@ -394,8 +394,26 @@ class TonePilotPanel {
 
       // Detail mode tab setup is now handled inside createNewConversation
 
-      // 2. Start using the service API (async)
-      const resultsPromise = this.aiServicesManager.processText(inputText, selectionState.currentSelection);
+      // 1.6. Retrieve relevant conversation context from memory
+      // Uses BM25 for semantic relevance or chronological for temporal queries
+      let conversationContext = '';
+      if (this.memoryService) {
+        try {
+          conversationContext = this.memoryService.getRelevantContextString(inputText, 5);
+          if (conversationContext) {
+            console.log('📚 Retrieved relevant conversation context from memory');
+          }
+        } catch (error) {
+          console.warn('⚠️ Failed to retrieve conversation context:', error);
+        }
+      }
+
+      // 2. Start using the service API (async) with conversation context
+      const resultsPromise = this.aiServicesManager.processText(
+        inputText,
+        selectionState.currentSelection,
+        conversationContext
+      );
 
       // 3. (Scroll happens automatically in createNewConversation)
 
