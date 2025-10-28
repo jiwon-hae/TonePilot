@@ -1521,16 +1521,18 @@ class TonePilotUIManager {
       const queryDisplay = container.querySelector('.query-display');
       if (!queryDisplay) return;
 
-      // Get container position
+      // Get positions
       const containerRect = container.getBoundingClientRect();
+      const queryRect = queryDisplay.getBoundingClientRect();
 
-      // Header is sticky when:
-      // 1. Container top is at or above the scroll area top (has scrolled up)
-      // 2. Container bottom is still below the scroll area top (haven't scrolled past it)
-      const isSticky = containerRect.top <= mainContentTop && containerRect.bottom > mainContentTop;
+      // The header is sticky when:
+      // 1. Container top is above the mainContent top (has scrolled up)
+      // 2. Container bottom is still below where the sticky header sits
+      const shouldBeSticky = containerRect.top < mainContentTop &&
+                            containerRect.bottom > (mainContentTop + queryRect.height);
 
-      // Add or remove 'scrolled' class based on sticky state
-      if (isSticky) {
+      // Add or remove 'scrolled' class
+      if (shouldBeSticky) {
         queryDisplay.classList.add('scrolled');
       } else {
         queryDisplay.classList.remove('scrolled');
