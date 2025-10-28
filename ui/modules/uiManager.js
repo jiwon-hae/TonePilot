@@ -1401,6 +1401,7 @@ class TonePilotUIManager {
   /**
    * Scroll to position new conversation at the top of viewport
    * Called when a new submission is made
+   * Maintains header position even as content grows
    */
   scrollToNewConversation(newContainer) {
     const mainContent = document.querySelector('.main-content');
@@ -1409,28 +1410,93 @@ class TonePilotUIManager {
     // Wait for layout to settle after filler is added
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        // Get the position of the new container
-        const containerRect = newContainer.getBoundingClientRect();
-        const mainContentRect = mainContent.getBoundingClientRect();
+        // Initial scroll to position header at top
+        this.anchorHeaderAtTop(newContainer, mainContent);
 
-        // Calculate how much to scroll to position container at top
-        const scrollOffset = containerRect.top - mainContentRect.top;
-        const targetScrollTop = mainContent.scrollTop + scrollOffset;
-
-        console.log('📍 Scrolling to new conversation:', {
-          containerTop: containerRect.top,
-          mainContentTop: mainContentRect.top,
-          currentScrollTop: mainContent.scrollTop,
-          scrollOffset: scrollOffset,
-          targetScrollTop: targetScrollTop
-        });
-
-        mainContent.scrollTo({
-          top: targetScrollTop,
-          behavior: 'smooth'
-        });
+        // Set up ResizeObserver to maintain header position as content grows
+        this.maintainHeaderPosition(newContainer, mainContent);
       });
     });
+  }
+
+  /**
+   * Anchor the conversation header at the top of viewport
+   */
+  anchorHeaderAtTop(container, mainContent) {
+    const containerRect = container.getBoundingClientRect();
+    const mainContentRect = mainContent.getBoundingClientRect();
+
+    // Calculate scroll position to place header at top
+    const scrollOffset = containerRect.top - mainContentRect.top;
+    const targetScrollTop = mainContent.scrollTop + scrollOffset;
+
+    console.log('📍 Anchoring header at top:', {
+      containerTop: containerRect.top,
+      mainContentTop: mainContentRect.top,
+      currentScrollTop: mainContent.scrollTop,
+      scrollOffset: scrollOffset,
+      targetScrollTop: targetScrollTop
+    });
+
+    mainContent.scrollTo({
+      top: targetScrollTop,
+      behavior: 'smooth'
+    });
+  }
+
+  /**
+   * Maintain header position at top as content grows during generation
+   * Uses ResizeObserver to continuously adjust scroll as container expands
+   */
+  maintainHeaderPosition(container, mainContent) {
+    let isObserving = true;
+
+    // Create ResizeObserver to watch container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      if (!isObserving) return;
+
+      // Re-anchor header at top as content is added
+      const containerRect = container.getBoundingClientRect();
+      const mainContentRect = mainContent.getBoundingClientRect();
+      const scrollOffset = containerRect.top - mainContentRect.top;
+
+      // Only adjust if header has drifted from top position
+      if (Math.abs(scrollOffset) > 1) {
+        const targetScrollTop = mainContent.scrollTop + scrollOffset;
+
+        // Use instant scroll (no behavior) to avoid janky animations during content growth
+        mainContent.scrollTop = targetScrollTop;
+
+        console.log('🔄 Adjusted scroll to maintain header position:', {
+          scrollOffset: scrollOffset,
+          newScrollTop: targetScrollTop
+        });
+      }
+    });
+
+    // Start observing the container
+    resizeObserver.observe(container);
+
+    // Stop observing after content generation is complete (5 seconds should be enough)
+    // We also listen for when the loading class is removed as a signal
+    const checkComplete = setInterval(() => {
+      if (!container.classList.contains('conversation-container-loading')) {
+        console.log('✅ Content generation complete, stopping header position maintenance');
+        isObserving = false;
+        resizeObserver.disconnect();
+        clearInterval(checkComplete);
+      }
+    }, 100);
+
+    // Fallback: stop after 10 seconds regardless
+    setTimeout(() => {
+      if (isObserving) {
+        console.log('⏱️ Timeout: Stopping header position maintenance');
+        isObserving = false;
+        resizeObserver.disconnect();
+        clearInterval(checkComplete);
+      }
+    }, 10000);
   }
 
   /**
