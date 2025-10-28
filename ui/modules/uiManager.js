@@ -159,6 +159,13 @@ class TonePilotUIManager {
       document.addEventListener('click', documentClickHandler);
       this.eventListeners.push({ element: document, event: 'click', handler: documentClickHandler });
 
+      // Scroll event for sticky header shadow effect
+      if (this.elements.mainContent) {
+        const scrollHandler = () => this.handleStickyHeaderScroll();
+        this.elements.mainContent.addEventListener('scroll', scrollHandler);
+        this.eventListeners.push({ element: this.elements.mainContent, event: 'scroll', handler: scrollHandler });
+      }
+
       console.log('✅ UI events bound successfully');
     } catch (error) {
       console.error('Event binding failed:', error);
@@ -1497,6 +1504,38 @@ class TonePilotUIManager {
         clearInterval(checkComplete);
       }
     }, 10000);
+  }
+
+  /**
+   * Handle sticky header scroll effect
+   * Adds/removes 'scrolled' class to query displays based on scroll position
+   */
+  handleStickyHeaderScroll() {
+    const mainContent = this.elements.mainContent;
+    if (!mainContent) return;
+
+    const containers = mainContent.querySelectorAll('.conversation-container');
+    const mainContentTop = mainContent.getBoundingClientRect().top;
+
+    containers.forEach(container => {
+      const queryDisplay = container.querySelector('.query-display');
+      if (!queryDisplay) return;
+
+      // Get container position
+      const containerRect = container.getBoundingClientRect();
+
+      // Header is sticky when:
+      // 1. Container top is at or above the scroll area top (has scrolled up)
+      // 2. Container bottom is still below the scroll area top (haven't scrolled past it)
+      const isSticky = containerRect.top <= mainContentTop && containerRect.bottom > mainContentTop;
+
+      // Add or remove 'scrolled' class based on sticky state
+      if (isSticky) {
+        queryDisplay.classList.add('scrolled');
+      } else {
+        queryDisplay.classList.remove('scrolled');
+      }
+    });
   }
 
   /**
