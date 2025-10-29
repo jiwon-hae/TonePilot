@@ -493,7 +493,10 @@ class TonePilotUIManager {
       </div>
       <div class="steps-section collapsed" style="display: none;">
         <div class="steps-header">
-          <span>Steps</span>
+          <span>
+            <img src="../icons/branch.png" alt="Branch" style="width:10px; height:10px;" />
+          </span>
+          <span>Assistant Steps</span>
           <span class="chevron">›</span>
         </div>
         <div class="steps-content"></div>
