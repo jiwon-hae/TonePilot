@@ -13,21 +13,34 @@ class DocumentService {
         throw new Error('Unsupported file type');
       }
 
+      // Convert file to base64 for storage (to display original file later)
+      const base64Data = await this.fileToBase64(file);
+
       const resumeData = {
         filename: file.name,
         type: file.type,
         size: file.size,
         content: parsedContent,
+        fileData: base64Data, // Store original file as base64
         uploadedAt: new Date().toISOString()
       };
 
       await chrome.storage.local.set({ resumeData });
-      console.log('✅ Resume data saved to local storage');
+      console.log('✅ Resume data saved to local storage (with original file)');
       return resumeData;
     } catch (error) {
       console.error('Failed to parse and save resume:', error);
       throw error;
     }
+  }
+
+  static async fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 
   static async parsePDF(file) {
