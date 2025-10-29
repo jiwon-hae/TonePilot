@@ -400,7 +400,7 @@ class TonePilotUIManager {
       <div class="sources-section" style="display: none;">
         <div class="source-cards"></div>
       </div>
-      <div class="steps-section" style="display: none;">
+      <div class="steps-section collapsed" style="display: none;">
         <div class="steps-header">
           <span>Assistant steps</span>
           <span class="chevron">›</span>
@@ -431,7 +431,7 @@ class TonePilotUIManager {
     const stepsContent = resultSection.querySelector('.steps-content');
     const sourceCards = resultSection.querySelector('.source-cards');
 
-    // Add steps collapse/expand functionality
+    // Add steps collapse/expand functionality (starts collapsed by default)
     if (stepsHeader) {
       stepsHeader.addEventListener('click', () => {
         stepsSection.classList.toggle('collapsed');

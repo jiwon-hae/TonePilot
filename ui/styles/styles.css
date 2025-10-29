@@ -554,8 +554,8 @@ textarea {
 
 .source-card {
   flex: 1;
-  min-width: 180px;
-  max-width: calc(33.333% - 6px);
+  min-width: 144px;
+  max-width: calc(25% - 6px);
   background: var(--secondary-bg);
   border: 1px solid var(--border-muted);
   border-radius: 6px;
@@ -695,10 +695,11 @@ textarea {
 .steps-header .chevron {
   font-size: 18px;
   transition: transform 0.2s ease;
+  transform: rotate(90deg); /* Default: pointing down when expanded */
 }
 
 .steps-section.collapsed .chevron {
-  transform: rotate(90deg);
+  transform: rotate(0deg); /* Pointing right when collapsed */
 }
 
 .steps-section.collapsed .steps-content {
