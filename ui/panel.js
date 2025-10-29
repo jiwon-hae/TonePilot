@@ -268,8 +268,11 @@ class TonePilotPanel {
       // Set up state listeners
       this.setupStateListeners();
 
+      // Set up step listeners for real-time step tracking
+      this.uiManager.setupStepListeners();
+
       // Initialize button appearances
-      this.updateDetailButtonAppearance(this.stateManager.getDetailMode());
+      this.updatePlanButtonAppearance(this.stateManager.getPlanMode());
 
       console.log('✅ UI components initialized');
     } catch (error) {
@@ -283,13 +286,13 @@ class TonePilotPanel {
    */
   setupStateListeners() {
     // Listen for detail mode changes to show/hide step indicator and update button
-    this.stateManager.addListener('detailMode', (detailMode) => {
-      console.log('📋 Detail mode state changed:', detailMode);
+    this.stateManager.addListener('planMode', (planMode) => {
+      console.log('📋 Detail mode state changed:', planMode);
 
       // Update button appearance
-      this.updateDetailButtonAppearance(detailMode);
+      this.updatePlanButtonAppearance(planMode);
 
-      if (detailMode) {
+      if (planMode) {
         // Detail mode enabled - step indicator will be shown when processing starts
         console.log('📋 Detail mode enabled, step indicator will show during processing');
       } else {
@@ -368,7 +371,7 @@ class TonePilotPanel {
     this.uiManager.handleOpenMedia = () => this.handleOpenMedia();
     this.uiManager.handleCloseMedia = () => this.handleCloseMedia();
     this.uiManager.handleToggleTranslate = () => this.handleToggleTranslate();
-    this.uiManager.handleToggleDetail = () => this.handleToggleDetail();
+    this.uiManager.handleTogglePlan = () => this.handleTogglePlan();
   }
 
   /**
@@ -387,10 +390,10 @@ class TonePilotPanel {
       }
 
       // 1. Check detail mode first and create container accordingly
-      const detailMode = this.stateManager.getDetailMode();
+      const planMode = this.stateManager.getPlanMode();
 
       // 1.5. Create container with detail mode info to handle loading properly
-      const conversationContainer = this.uiManager.createNewConversation(inputText, detailMode);
+      const conversationContainer = this.uiManager.createNewConversation(inputText, planMode);
 
       // Detail mode tab setup is now handled inside createNewConversation
 
@@ -424,26 +427,34 @@ class TonePilotPanel {
       this.stateManager.setState('currentResults', results);
 
       // Display results in the conversation container
-      this.uiManager.showResults(results, conversationContainer);
+      await this.uiManager.showResults(results, conversationContainer);
 
-      // Save to history if available
-      if (this.storage) {
+      // Save to history if available and results are valid
+      if (this.storage && results.primary && results.primary.trim().length > 0) {
         const originalText = selectionState.currentSelection?.text || inputText;
-        const rewrittenText = results.primary || '';
+        const rewrittenText = results.primary;
         const preset = results.service || 'unknown';
 
-        await this.storage.saveRewrite({
-          originalText: originalText,
-          rewrittenText: rewrittenText,
-          preset: preset,
-          domain: window.location.hostname || 'unknown',
-          metadata: {
-            intent: results.intent,
-            via: results.via,
-            service: results.service,
-            type: results.type
-          }
-        });
+        try {
+          await this.storage.saveRewrite({
+            originalText: originalText,
+            rewrittenText: rewrittenText,
+            preset: preset,
+            domain: window.location.hostname || 'unknown',
+            metadata: {
+              intent: results.intent,
+              via: results.via,
+              service: results.service,
+              type: results.type
+            }
+          });
+          console.log('💾 Result saved to history');
+        } catch (error) {
+          console.warn('⚠️ Failed to save to history:', error);
+          // Don't throw - this is not critical
+        }
+      } else if (this.storage) {
+        console.log('ℹ️ Skipping history save - no valid result to save');
       }
 
       // Save to memory service with summarized content
@@ -543,35 +554,50 @@ class TonePilotPanel {
   }
 
   /**
-   * Handle detail button toggle
+   * Handle plan button toggle
    */
-  handleToggleDetail() {
-    const detailBtn = this.uiManager.elements.detailBtn;
-    const isActive = detailBtn.dataset.active === 'true';
+  handleTogglePlan() {
+    const planBtn = this.uiManager.elements.planBtn;
+    if (!planBtn) {
+      console.error('❌ planBtn element not found');
+      return;
+    }
+
+    const isActive = planBtn.dataset.active === 'true';
 
     // Toggle the active state
-    detailBtn.dataset.active = !isActive ? 'true' : 'false';
+    planBtn.dataset.active = !isActive ? 'true' : 'false';
 
     // Update state manager
-    this.stateManager.setDetailMode(!isActive);
+    this.stateManager.setPlanMode(!isActive);
 
     // Update button icon and label
-    this.updateDetailButtonAppearance(!isActive);
+    this.updatePlanButtonAppearance(!isActive);
 
-    console.log(`📋 Detail mode ${!isActive ? 'enabled' : 'disabled'}`);
+    console.log(`📋 Plan mode ${!isActive ? 'enabled' : 'disabled'}`);
   }
 
   /**
-   * Update detail button appearance based on mode
-   * @param {boolean} isPlanMode - Whether detail mode is active
+   * Update plan button appearance based on mode
+   * @param {boolean} isPlanMode - Whether plan mode is active
    */
-  updateDetailButtonAppearance(isPlanMode) {
-    const detailBtn = this.uiManager.elements.detailBtn;
-    const imgElement = detailBtn.querySelector('img');
-    const labelElement = detailBtn.querySelector('.label');
+  updatePlanButtonAppearance(isPlanMode) {
+    const planBtn = this.uiManager.elements.planBtn;
+    if (!planBtn) {
+      console.error('❌ planBtn element not found');
+      return;
+    }
+
+    const imgElement = planBtn.querySelector('img');
+    const labelElement = planBtn.querySelector('.label');
+
+    if (!imgElement || !labelElement) {
+      console.error('❌ planBtn img or label element not found');
+      return;
+    }
 
     if (isPlanMode) {
-      // Detail mode: use complex.png and "Plan" label
+      // Plan mode: use complex.png and "Plan" label
       imgElement.src = '../icons/complex.png';
       imgElement.alt = 'Plan';
       labelElement.textContent = 'Plan';

@@ -10,6 +10,94 @@ class TonePilotUIManager {
     this.eventListeners = [];
     this.conversationHistory = [];
     this.previousResult = null;
+    this.currentConversationContainer = null; // Track current container for real-time updates
+  }
+
+  /**
+   * Set up listeners for processing steps
+   */
+  setupStepListeners() {
+    if (!this.stateManager) {
+      console.warn('⚠️ StateManager not available for step listeners');
+      return;
+    }
+
+    // Listen for processing steps changes
+    this.stateManager.addListener('processingSteps', (steps) => {
+      console.log('🔍 Processing steps updated:', steps);
+      this.updateStepsDisplay(steps);
+    });
+
+    console.log('✅ Step listeners set up');
+  }
+
+  /**
+   * Update steps display in real-time
+   * @param {Array} steps - Array of step objects
+   */
+  updateStepsDisplay(steps) {
+    if (!this.currentConversationContainer) {
+      console.log('ℹ️ No current conversation container for steps update');
+      return;
+    }
+
+    const stepsSection = this.currentConversationContainer.stepsSection;
+    const stepsContent = this.currentConversationContainer.stepsContent;
+
+    if (!stepsSection || !stepsContent) {
+      console.warn('⚠️ Steps section not found in current container');
+      return;
+    }
+
+    // Clear existing steps
+    stepsContent.innerHTML = '';
+
+    if (steps && steps.length > 0) {
+      // Show steps section if hidden
+      stepsSection.style.display = 'block';
+
+      // Check if all steps are complete
+      const allComplete = steps.every(step => step.status === 'complete');
+
+      // Add each step
+      steps.forEach((stepData, index) => {
+        const stepDiv = document.createElement('div');
+        stepDiv.className = 'step-item';
+
+        // Add status indicator
+        let statusIcon = '';
+        if (stepData.status === 'complete') {
+          statusIcon = '<span class="step-status"> </span>';
+        } else if (stepData.status === 'error') {
+          statusIcon = '<span class="step-status error">✗</span>';
+        } else {
+          // in_progress
+          statusIcon = '<span class="step-status loading">⋯</span>';
+        }
+
+        stepDiv.innerHTML = `
+          <div class="step-bullet"></div>
+          <div class="step-text">${this.escapeHtml(stepData.step)} ${statusIcon}</div>
+        `;
+        stepsContent.appendChild(stepDiv);
+      });
+
+      // Add "Complete" step at the end if all steps are complete
+      if (allComplete) {
+        const completeDiv = document.createElement('div');
+        completeDiv.className = 'step-item';
+        completeDiv.innerHTML = `
+          <div class="step-bullet"></div>
+          <div class="step-text">Complete <span class="step-status"> </span></div>
+        `;
+        stepsContent.appendChild(completeDiv);
+      }
+
+      console.log('✅ Steps display updated with', steps.length, 'steps');
+    } else {
+      // No steps yet, hide section
+      stepsSection.style.display = 'none';
+    }
   }
 
   /**
@@ -55,7 +143,7 @@ class TonePilotUIManager {
         { element: 'submitBtn', handler: async () => await this.handleSubmit() },
         { element: 'mediaBtn', handler: () => this.handleOpenMedia() },
         { element: 'translateBtn', handler: () => this.handleToggleTranslate() },
-        { element: 'detailBtn', handler: () => this.handleToggleDetail() }
+        { element: 'planBtn', handler: () => this.handleTogglePlan() }
       ];
 
       buttonEvents.forEach(({ element, handler }) => {
@@ -297,10 +385,10 @@ class TonePilotUIManager {
   /**
    * Create new conversation container and prepare for processing
    * @param {string} inputText - Original input text
-   * @param {boolean} detailMode - Whether detail mode is active
+   * @param {boolean} planMode - Whether plan mode is active
    * @returns {Object} Reference to the new conversation container elements
    */
-  createNewConversation(inputText, detailMode = false) {
+  createNewConversation(inputText, planMode = false) {
     console.log('🎯 createNewConversation called with:', inputText);
 
     // Ensure inputText is a string
@@ -334,15 +422,12 @@ class TonePilotUIManager {
     // Resize all existing conversations to content size before creating new one
     this.resizePreviousConversationsToContent();
 
-    // Create new container with query and tabs at the bottom
-    const newContainer = this.createConversationContainer(safeInputText, detailMode);
+    // Create new container with query and new layout
+    const newContainer = this.createConversationContainer(safeInputText, planMode);
     console.log('📦 createConversationContainer returned:', newContainer);
 
-    // If detail mode is active, set up the Alternative 1 tab immediately
-    if (detailMode) {
-      console.log('📋 Detail mode active - setting up Alternative 1 tab immediately');
-      this.showDetailModeTab(newContainer);
-    }
+    // Set as current container for real-time step updates
+    this.currentConversationContainer = newContainer;
 
     // Animate to show the new container with smooth transitions
     console.log('🎬 About to call animateToNewContainer');
@@ -384,10 +469,10 @@ class TonePilotUIManager {
   /**
    * Create a new conversation container with query and result structure
    * @param {string} inputText - User's input text
-   * @param {boolean} detailMode - Whether detail mode is active
+   * @param {boolean} planMode - Whether plan mode is active
    * @returns {Object} Container elements
    */
-  createConversationContainer(inputText, detailMode = false) {
+  createConversationContainer(inputText, planMode = false) {
     // Create main container (let it size naturally, we'll control the result content height)
     const containerDiv = document.createElement('div');
     containerDiv.className = 'conversation-container conversation-container-loading';
@@ -398,43 +483,65 @@ class TonePilotUIManager {
     queryDisplay.style.display = 'block';
     queryDisplay.innerHTML = `<div class="query-text">${inputText?.trim() || ''}</div>`;
 
-    // Create result section with tabs
+    // Create result section with new layout (no tabs)
     const resultSection = document.createElement('div');
     resultSection.className = 'result-section visible';
     resultSection.style.display = 'block';
     resultSection.innerHTML = `
-      <div class="result-tabs">
-        <button class="result-tab active" data-tab="primary">Assistant</button>
-        <button class="result-tab" data-tab="alt1" style="display: none;">
-            <img src="../icons/branch.png" alt="Branch" style="width:10px; height:10px;" />
-            <span>Steps</span>
-        </button>
-        <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
+      <div class="sources-section" style="display: none;">
+        <div class="source-cards"></div>
       </div>
-      <div id="primary-content" class="tab-content">
+      <div class="steps-section collapsed" style="display: none;">
+        <div class="steps-header">
+          <span>
+            <img src="../icons/branch.png" alt="Branch" style="width:10px; height:10px;" />
+          </span>
+          <span>Assistant Steps</span>
+          <span class="chevron">›</span>
+        </div>
+        <div class="steps-content"></div>
+      </div>
+      <div class="content-section">
+        <div class="result-content"></div>
         <div class="result-actions" style="display: none;">
           <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
             <img src="../icons/copy.png" alt="Copy" width="12" height="12"  />
           </button>
         </div>
       </div>
-      <div id="alt1-content" class="tab-content" style="display: none;"></div>
-      <div id="alt2-content" class="tab-content" style="display: none;"></div>
     `;
 
-    // Get primary content element - loading will be managed inside this div
-    const primaryContent = resultSection.querySelector('#primary-content');
+    // Get content section element - loading will be managed inside this div
+    const contentSection = resultSection.querySelector('.content-section');
 
     // Assemble container
     containerDiv.appendChild(queryDisplay);
     containerDiv.appendChild(resultSection);
 
+    // Get section elements
+    const sourcesSection = resultSection.querySelector('.sources-section');
+    const stepsSection = resultSection.querySelector('.steps-section');
+    const stepsHeader = resultSection.querySelector('.steps-header');
+    const stepsContent = resultSection.querySelector('.steps-content');
+    const sourceCards = resultSection.querySelector('.source-cards');
+
+    // Add steps collapse/expand functionality (starts collapsed by default)
+    if (stepsHeader) {
+      stepsHeader.addEventListener('click', () => {
+        stepsSection.classList.toggle('collapsed');
+      });
+    }
+
     // Add copy button event listener for this specific container
-    const copyButton = resultSection.querySelector('.btn-secondary');
+    const copyButton = resultSection.querySelector('.copy-btn');
     if (copyButton) {
-      copyButton.addEventListener('click', () => {
+      copyButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('📋 Copy button clicked for container');
         this.handleCopyFromContainer(containerDiv);
       });
+    } else {
+      console.warn('⚠️ Copy button not found in result section');
     }
 
     // Append at the bottom of main content (newest conversations at bottom)
@@ -484,23 +591,17 @@ class TonePilotUIManager {
       const queryStyle = window.getComputedStyle(queryDisplay);
       const queryMargins = parseFloat(queryStyle.marginTop) + parseFloat(queryStyle.marginBottom);
 
-      // Get tab container height (Primary tab is visible during loading)
-      const tabsElement = resultSection.querySelector('.result-tabs');
-      const tabsHeight = tabsElement.offsetHeight || 40;
-      const tabsStyle = window.getComputedStyle(tabsElement);
-      const tabsMargins = parseFloat(tabsStyle.marginTop) + parseFloat(tabsStyle.marginBottom);
-
       // Container margins (now consistently 24px top for all containers)
       const containerStyle = window.getComputedStyle(containerDiv);
       const containerMargins = parseFloat(containerStyle.marginTop) + parseFloat(containerStyle.marginBottom);
 
-      // During loading: Let primary content area size naturally to fit loading text
+      // During loading: Let content section size naturally to fit loading text
       // Natural sizing prevents overscroll during loading phase
-      primaryContent.style.height = 'auto';
-      primaryContent.style.minHeight = 'auto';
+      contentSection.style.height = 'auto';
+      contentSection.style.minHeight = 'auto';
 
       // Use natural flow instead of flex to prevent upward growth
-      primaryContent.style.flex = 'none';
+      contentSection.style.flex = 'none';
 
       console.log('📐 Loading area sized naturally to prevent overscroll');
 
@@ -511,51 +612,46 @@ class TonePilotUIManager {
         visibleElements: {
           queryHeight,
           queryMargins,
-          tabsHeight,
-          tabsMargins,
           containerMargins
         },
-        primaryContentHeight: 'auto (natural sizing)',
+        contentSectionHeight: 'auto (natural sizing)',
         expectedTotalHeight: 'calculated after content loads',
         shouldEqual: availableHeight,
         willFitInMainContent: 'calculated after content loads'
       });
     });
 
-    this.startLoadingInContainer(primaryContent);
-
-    // In detail mode, the Alternative 1 tab will be activated and show step indicators instead
-    if (detailMode) {
-      console.log('📋 Detail mode active - loading will be replaced by step indicators when Alternative 1 tab activates');
-    }
+    this.startLoadingInContainer(contentSection);
 
     // Handle filler logic based on panel state
     requestAnimationFrame(() => {
       this.handleFillerForNewItem(containerDiv);
     });
 
-    // Get all content containers
-    const alt1Content = resultSection.querySelector('#alt1-content');
-    const alt2Content = resultSection.querySelector('#alt2-content');
-
-    // Initialize results object for tab switching
+    // Initialize results object
     const conversationContainer = {
       container: containerDiv,
       queryDisplay,
       resultSection,
-      resultContent: primaryContent, // For backward compatibility
-      primaryContent,
-      alt1Content,
-      alt2Content,
+      contentSection,
+      sourcesSection,
+      stepsSection,
+      stepsContent,
+      sourceCards,
+      resultContent: contentSection, // For backward compatibility
+      planMode: planMode,
       results: {
-        primary: null,
-        alt1: null,
-        alt2: null
+        content: null,
+        steps: null,
+        sources: null
       }
     };
 
     // Also add results to the DOM element for tab switching access
     containerDiv.results = conversationContainer.results;
+    containerDiv.planMode = planMode;
+
+    console.log('📋 Conversation container created with planMode:', planMode);
 
     return conversationContainer;
   }
@@ -650,7 +746,7 @@ class TonePilotUIManager {
    * @param {Object} results - Results object
    * @param {Object} conversationContainer - The container to update with results
    */
-  showResults(results, conversationContainer) {
+  async showResults(results, conversationContainer) {
     console.log('🎯 Following user specification - Step 4: Replace loading with generated text');
     console.log('📊 Results object:', results);
     console.log('📦 Conversation container:', conversationContainer);
@@ -666,14 +762,6 @@ class TonePilotUIManager {
     console.log('📍 BEFORE content load - scroll disabled:', {
       strategy: 'Disable scrolling during content changes, no restoration needed'
     });
-
-    // Get detail mode status first (needed throughout the method)
-    let detailMode = false;
-    try {
-      detailMode = this.stateManager?.getDetailMode();
-    } catch (error) {
-      console.warn('⚠️ Error getting detail mode:', error);
-    }
 
     // Stop the loading animation
     this.stopLoadingAnimation();
@@ -695,131 +783,62 @@ class TonePilotUIManager {
 
     // Loading is now managed inside result content, no separate loading area to hide
 
-    // Show alternative tabs based on available data
-    if (conversationContainer && conversationContainer.resultSection) {
-      console.log('🔍 Tab visibility check:', {
-        hasAlt1: !!results.alt1,
-        hasAlt2: !!results.alt2,
-        alt1Content: results.alt1 ? results.alt1.substring(0, 100) + '...' : 'none',
-        resultKeys: Object.keys(results)
-      });
-
-      // Show Alternative 1 tab if data exists OR if detail mode is active
-
-      if (results.alt1 || (detailMode && this.currentDetailContainer === conversationContainer)) {
-        const alt1Tab = conversationContainer.resultSection.querySelector('[data-tab="alt1"]');
-        if (alt1Tab) {
-          alt1Tab.style.display = 'block';
-          console.log('✅ Alternative 1 tab made visible');
-        } else {
-          console.warn('⚠️ alt1Tab not found');
-        }
-      } else {
-        console.log('⚠️ No alt1 content found in results and not in detail mode');
-      }
-
-      // Show Alternative 2 tab if data exists
-      if (results.alt2) {
-        const alt2Tab = conversationContainer.resultSection.querySelector('[data-tab="alt2"]');
-        if (alt2Tab) {
-          alt2Tab.style.display = 'block';
-        } else {
-          console.warn('⚠️ alt2Tab not found');
-        }
-      }
-    }
-
-    // Store all content types in the conversation container for tab switching
+    // Store results in the conversation container
     if (conversationContainer) {
-      // Preserve existing results if they exist (especially step indicators in alt1)
-      const existingResults = conversationContainer.results || {};
-
-      // Determine alt1 content with detailed debugging
-      let alt1Content = null;
-      if (detailMode && this.currentDetailContainer === conversationContainer) {
-        alt1Content = this.currentStepIndicatorHTML || existingResults.alt1;
-        console.log('📋 Detail mode alt1 content decision:', {
-          hasCurrentStepHTML: !!this.currentStepIndicatorHTML,
-          hasExistingAlt1: !!existingResults.alt1,
-          currentStepHTMLLength: this.currentStepIndicatorHTML ? this.currentStepIndicatorHTML.length : 0,
-          existingAlt1Length: existingResults.alt1 ? existingResults.alt1.length : 0,
-          selectedContent: alt1Content ? 'step indicators' : 'none',
-          isCurrentDetailContainer: this.currentDetailContainer === conversationContainer
-        });
-      } else {
-        alt1Content = results.alt1;
-        console.log('📋 Normal mode alt1 content:', { hasResultsAlt1: !!results.alt1 });
-      }
-
       conversationContainer.results = {
-        primary: results.primary,
-        alt1: alt1Content,
-        alt2: results.alt2
+        content: results.primary || results.content,
+        steps: results.steps || null,
+        sources: results.sources || null
       };
 
       console.log('📋 Stored results in conversation container:', {
-        hasPrimary: !!conversationContainer.results.primary,
-        hasAlt1: !!conversationContainer.results.alt1,
-        hasAlt2: !!conversationContainer.results.alt2,
-        isDetailMode: detailMode,
-        alt1Content: detailMode ? 'step indicators' : 'ai output',
-        preservedExisting: !!existingResults.alt1
+        hasContent: !!conversationContainer.results.content,
+        hasSteps: !!conversationContainer.results.steps,
+        hasSources: !!conversationContainer.results.sources
       });
     }
 
-    // Switch to Primary tab and update content - but preserve Alternative 1 tab content in detail mode
-    if (conversationContainer && conversationContainer.primaryContent && conversationContainer.resultSection) {
-      const primaryTab = conversationContainer.resultSection.querySelector('[data-tab="primary"]');
+    // Update content section with AI-generated text
+    if (conversationContainer && conversationContainer.contentSection) {
+      // Remove loading message if it exists (don't just hide it to avoid spacing issues)
+      const loadingMessage = conversationContainer.contentSection.querySelector('.loading-message');
+      if (loadingMessage) {
+        loadingMessage.remove();
+      }
 
-      if (primaryTab) {
-        // Make Primary tab active
-        conversationContainer.resultSection.querySelectorAll('.result-tab').forEach(t => t.classList.remove('active'));
-        primaryTab.classList.add('active');
+      // Find result content div
+      let resultDiv = conversationContainer.contentSection.querySelector('.result-content');
+      if (resultDiv) {
+        // Update result content (trim to remove leading/trailing whitespace)
+        const contentText = results.primary || results.content || '';
+        resultDiv.textContent = contentText.trim();
+        resultDiv.style.display = 'block';
+        resultDiv.style.height = 'auto';
+        resultDiv.style.minHeight = 'auto';
+        resultDiv.style.flex = 'none';
 
-        // Update primary content with AI-generated text
-        if (conversationContainer.primaryContent) {
-          // Remove loading message if it exists (don't just hide it to avoid spacing issues)
-          const loadingMessage = conversationContainer.primaryContent.querySelector('.loading-message');
-          if (loadingMessage) {
-            loadingMessage.remove();
-          }
+        conversationContainer.contentSection.style.display = 'block';
+        conversationContainer.contentSection.style.height = 'auto';
+        conversationContainer.contentSection.style.minHeight = 'auto';
+        conversationContainer.contentSection.style.flex = 'none';
 
-          // Find or create result content div
-          let resultDiv = conversationContainer.primaryContent.querySelector('.result-content');
-          if (!resultDiv) {
-            resultDiv = document.createElement('div');
-            resultDiv.className = 'result-content';
-            // Insert before result-actions if they exist
-            const resultActions = conversationContainer.primaryContent.querySelector('.result-actions');
-            if (resultActions) {
-              conversationContainer.primaryContent.insertBefore(resultDiv, resultActions);
-            } else {
-              conversationContainer.primaryContent.appendChild(resultDiv);
-            }
-          }
+        console.log('📑 Results ready: content section updated with AI results');
+      }
 
-          // Update result content (trim to remove leading/trailing whitespace)
-          resultDiv.textContent = results.primary.trim();
-          resultDiv.style.display = 'block';
-          resultDiv.style.height = 'auto';
-          resultDiv.style.minHeight = 'auto';
-          resultDiv.style.flex = 'none';
+      // Show sources if available (or use placeholder for UI/UX testing)
+      if (conversationContainer.sourcesSection) {
+        const sourcesToShow = results.sources || await this.getPlaceholderSources();
+        this.populateSources(conversationContainer.sourceCards, sourcesToShow);
+        conversationContainer.sourcesSection.style.display = 'block';
+      }
 
-          conversationContainer.primaryContent.style.display = 'block';
-          conversationContainer.primaryContent.style.height = 'auto';
-          conversationContainer.primaryContent.style.minHeight = 'auto';
-          conversationContainer.primaryContent.style.flex = 'none';
+      // Steps are now updated in real-time via state listener
+      // Just ensure steps section is visible if we have steps
+      if (conversationContainer.stepsSection) {
+        const currentSteps = this.stateManager.getProcessingSteps();
+        if (currentSteps && currentSteps.length > 0) {
+          conversationContainer.stepsSection.style.display = 'block';
         }
-
-        // Populate alternative content containers
-        if (conversationContainer.alt1Content && results.alt1) {
-          conversationContainer.alt1Content.innerHTML = results.alt1;
-        }
-        if (conversationContainer.alt2Content && results.alt2) {
-          conversationContainer.alt2Content.textContent = results.alt2;
-        }
-
-        console.log('📑 Results ready: switched to Primary tab with AI results');
       }
     } else {
       console.warn('showResults called with invalid conversationContainer');
@@ -854,6 +873,353 @@ class TonePilotUIManager {
       }
     }, 50); // Small delay to ensure all DOM changes are complete
   }
+
+  /**
+   * Populate sources section with source cards
+   * @param {HTMLElement} sourceCards - Container for source cards
+   * @param {Array} sources - Array of source objects
+   */
+  populateSources(sourceCards, sources) {
+    if (!sourceCards || !sources || !Array.isArray(sources)) return;
+
+    sourceCards.innerHTML = '';
+    sources.forEach(source => {
+      const card = document.createElement('div');
+      card.className = 'source-card';
+
+      const icon = source.icon || source.favicon || '🌐';
+      const title = source.title || source.name || 'Unknown Source';
+      const snippet = source.snippet || source.description || '';
+      const url = source.url || null;
+      const isLocal = source.isLocal || false;
+      const isMedia = source.isMedia || false;
+      const thumbnail = source.thumbnail || null;
+      const onClick = source.onClick || null;
+
+      // For media items, show small thumbnail similar to icon size
+      if (isMedia && thumbnail) {
+        card.classList.add('source-card-media');
+        card.innerHTML = `
+          <div class="source-thumbnail-icon">
+            <img src="${thumbnail}" alt="${title}" onerror="this.style.display='none'; this.parentElement.textContent='${icon}';" />
+          </div>
+          <div class="source-content">
+            <div class="source-title">${title}</div>
+            <div class="source-snippet">${snippet}</div>
+          </div>
+        `;
+      } else {
+        // Regular source card with icon
+        card.innerHTML = `
+          <div class="source-icon">${icon}</div>
+          <div class="source-content">
+            <div class="source-title">${title}</div>
+            <div class="source-snippet">${snippet}</div>
+          </div>
+        `;
+      }
+
+      // Handle clickability based on source type
+      if (onClick) {
+        // Custom click handler (e.g., for resume, media)
+        card.style.cursor = 'pointer';
+        if (isLocal) {
+          card.classList.add('source-card-local');
+        }
+        card.addEventListener('click', onClick);
+      } else if (url && url !== '#' && !isLocal) {
+        // External URL
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', () => {
+          window.open(url, '_blank');
+        });
+      } else if (isLocal) {
+        // Local documents without click handler - not clickable
+        card.style.cursor = 'default';
+        card.classList.add('source-card-local');
+      }
+
+      sourceCards.appendChild(card);
+    });
+  }
+
+  /**
+   * Populate steps section with step content
+   * @param {HTMLElement} stepsContent - Container for step content
+   * @param {Array|String} steps - Steps data (array or HTML string)
+   */
+  populateSteps(stepsContent, steps) {
+    if (!stepsContent || !steps) return;
+
+    if (typeof steps === 'string') {
+      // HTML string
+      stepsContent.innerHTML = steps;
+    } else if (Array.isArray(steps)) {
+      // Array of step objects
+      stepsContent.innerHTML = '';
+      steps.forEach((step, index) => {
+        const stepDiv = document.createElement('div');
+        stepDiv.className = 'step-item';
+        stepDiv.innerHTML = `
+          <div class="step-number">${index + 1}</div>
+          <div class="step-text">${step.text || step.title || step}</div>
+        `;
+        stepsContent.appendChild(stepDiv);
+      });
+    }
+  }
+
+  /**
+   * Get placeholder sources for UI/UX testing
+   * Now shows user's uploaded documents (resume, email templates) and selected media
+   * @returns {Promise<Array>} Placeholder source objects
+   */
+  async getPlaceholderSources() {
+    const sources = [];
+
+    // Check for selected media first
+    if (this.stateManager && this.stateManager.state.selectedMediaArray) {
+      const selectedMedia = this.stateManager.state.selectedMediaArray;
+      console.log('📸 Found selected media:', selectedMedia.length);
+
+      selectedMedia.forEach((media, index) => {
+        const mediaType = media.type === 'video' ? '🎥' : '🖼️';
+        const mediaTitle = media.alt || `${media.type === 'video' ? 'Video' : 'Image'} ${index + 1}`;
+
+        sources.push({
+          icon: mediaType,
+          title: mediaTitle,
+          snippet: `Selected ${media.type} from page`,
+          url: media.src,
+          isLocal: false,
+          isMedia: true,
+          thumbnail: media.src,
+          mediaType: media.type,
+          onClick: () => this.handleMediaClick(media)
+        });
+      });
+    }
+
+    // Check for uploaded resume
+    try {
+      if (window.DocumentService) {
+        const resumeData = await window.DocumentService.getResumeData();
+        if (resumeData) {
+          const sizeFormatted = this.formatFileSize(resumeData.size);
+          const uploadDate = new Date(resumeData.uploadedAt).toLocaleDateString();
+          sources.push({
+            icon: '📄',
+            title: resumeData.filename,
+            snippet: `Resume • ${sizeFormatted} • Uploaded ${uploadDate}`,
+            url: null,
+            isLocal: true,
+            onClick: () => this.handleResumeClick(resumeData)
+          });
+        }
+
+        // Check for email templates
+        const emailSubject = await window.DocumentService.getEmailSubject();
+        const emailTemplate = await window.DocumentService.getColdEmailTemplate();
+        if (emailSubject || emailTemplate) {
+          const subjectText = emailSubject || 'No subject';
+
+          sources.push({
+            icon: '📧',
+            title: 'Email Template',
+            snippet: `Subject: ${subjectText}`,
+            url: null,
+            isLocal: true
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load document sources:', error);
+    }
+
+    // If no sources at all, show helpful message
+    if (sources.length === 0) {
+      sources.push({
+        icon: '📎',
+        title: 'No sources available',
+        snippet: 'Select media or upload resume to see them here',
+        url: null,
+        isLocal: true
+      });
+    }
+
+    return sources;
+  }
+
+  /**
+   * Handle click on media source card
+   * Opens the media in a new tab
+   * @param {Object} media - Media object
+   */
+  handleMediaClick(media) {
+    try {
+      console.log('📸 Opening media:', media.src);
+      window.open(media.src, '_blank');
+    } catch (error) {
+      console.error('Failed to open media:', error);
+      alert('Failed to open media: ' + error.message);
+    }
+  }
+
+  /**
+   * Format file size in human-readable format
+   * @param {number} bytes - File size in bytes
+   * @returns {string} Formatted size
+   */
+  formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  /**
+   * Handle click on resume source card
+   * Opens the original resume file (PDF/DOCX) in a new window/tab
+   * @param {Object} resumeData - Resume data object
+   */
+  handleResumeClick(resumeData) {
+    try {
+      console.log('📄 Opening resume:', resumeData.filename);
+
+      // Check if we have the original file data
+      if (!resumeData.fileData) {
+        console.warn('⚠️ No original file data found, showing parsed text instead');
+        this.showParsedResumeContent(resumeData);
+        return;
+      }
+
+      // For PDF files, create a blob URL and open it
+      if (resumeData.type === 'application/pdf') {
+        // Convert base64 to blob
+        const base64Response = fetch(resumeData.fileData);
+        base64Response.then(res => res.blob()).then(blob => {
+          // Create object URL
+          const blobUrl = URL.createObjectURL(blob);
+
+          // Open in new tab
+          const newWindow = window.open(blobUrl, '_blank');
+          if (!newWindow) {
+            console.error('Failed to open new window - popup may be blocked');
+            alert('Please allow popups to view the PDF');
+          }
+
+          // Clean up the object URL after some time
+          setTimeout(() => {
+            URL.revokeObjectURL(blobUrl);
+          }, 60000); // Clean up after 1 minute
+        });
+      } else if (resumeData.type.includes('word') || resumeData.filename.endsWith('.docx')) {
+        // For Word docs, we can't display them directly, so show parsed content
+        console.log('📄 DOCX files cannot be displayed directly, showing parsed content');
+        this.showParsedResumeContent(resumeData);
+      } else {
+        console.warn('⚠️ Unknown file type, showing parsed content');
+        this.showParsedResumeContent(resumeData);
+      }
+    } catch (error) {
+      console.error('Failed to open resume:', error);
+      alert('Failed to open resume: ' + error.message);
+    }
+  }
+
+  /**
+   * Show parsed resume content in HTML format (fallback)
+   * @param {Object} resumeData - Resume data object
+   */
+  showParsedResumeContent(resumeData) {
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>${resumeData.filename}</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+          }
+          .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          .header h1 {
+            margin: 0 0 10px 0;
+            color: #4a90e2;
+            font-size: 24px;
+          }
+          .header .meta {
+            color: #666;
+            font-size: 14px;
+          }
+          .content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 12px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>📄 ${this.escapeHtml(resumeData.filename)}</h1>
+          <div class="meta">
+            Uploaded: ${new Date(resumeData.uploadedAt).toLocaleString()} •
+            Size: ${this.formatFileSize(resumeData.size)}
+          </div>
+        </div>
+        <div class="content">${this.escapeHtml(resumeData.content)}</div>
+        <div class="footer">
+          Parsed resume content from TonePilot
+        </div>
+      </body>
+      </html>
+    `;
+
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(htmlContent);
+      newWindow.document.close();
+    } else {
+      console.error('Failed to open new window - popup may be blocked');
+      alert('Please allow popups to view the resume');
+    }
+  }
+
+  /**
+   * Escape HTML to prevent XSS
+   * @param {string} text - Text to escape
+   * @returns {string} Escaped text
+   */
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /**
+   * Get placeholder steps for UI/UX testing
+   * @returns {Array} Placeholder step objects
+   */
 
   /**
    * Adjust filler after content generation to maintain proper positioning
@@ -1751,17 +2117,16 @@ class TonePilotUIManager {
    */
   handleCopyFromContainer(containerDiv) {
     try {
-      // Find the currently active tab content within this specific container
-      const activeTabContent = containerDiv.querySelector('.tab-content[style*="block"]');
-      if (!activeTabContent) {
-        console.warn('No active tab content found in container');
+      // Find the result-content within the content-section (no tabs in new layout)
+      const contentSection = containerDiv.querySelector('.content-section');
+      if (!contentSection) {
+        console.warn('No content-section found in container');
         return;
       }
 
-      // Get ONLY the result-content div, not the entire tab-content (which includes buttons, loading messages, etc.)
-      const resultContent = activeTabContent.querySelector('.result-content');
+      const resultContent = contentSection.querySelector('.result-content');
       if (!resultContent) {
-        console.warn('No result-content found in active tab');
+        console.warn('No result-content found in content-section');
         return;
       }
 
@@ -1772,6 +2137,8 @@ class TonePilotUIManager {
         console.warn('No content to copy');
         return;
       }
+
+      console.log('📋 Copying text:', textToCopy.substring(0, 50) + '...');
 
       // Copy to clipboard using the Clipboard API
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -2074,7 +2441,7 @@ class TonePilotUIManager {
    * Show detail mode tab immediately upon submit
    * @param {Object} conversationContainer - The conversation container
    */
-  showDetailModeTab(conversationContainer) {
+  showPlanModeTab(conversationContainer) {
     if (!conversationContainer || !conversationContainer.resultSection) {
       console.warn('⚠️ Cannot show detail mode tab - no result section');
       return;
@@ -2159,7 +2526,7 @@ class TonePilotUIManager {
         }
 
         // Mark this container as having detail mode active so tab switching knows to handle it differently
-        conversationContainer._detailModeActive = true;
+        conversationContainer._planModeActive = true;
 
         console.log('📋 Alternative 1 tab activated with step indicators in result content, replaced loading');
       }
@@ -2182,7 +2549,7 @@ class TonePilotUIManager {
    * @param {string} status - Status (pending, active, completed)
    * @param {string} activeSubstep - Optional active substep
    */
-  updateDetailModeStepIndicator(stepId, status, activeSubstep = null) {
+  updatePlanModeStepIndicator(stepId, status, activeSubstep = null) {
     if (!this.currentDetailContainer) {
       console.warn('⚠️ No detail container available for step update');
       return;

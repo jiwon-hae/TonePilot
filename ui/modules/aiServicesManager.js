@@ -15,8 +15,6 @@ class TonePilotAIServicesManager {
     this.summarizerService = null;
     this.promptService = null;
     this.translationService = null;
-    this.searchService = null;
-    this.promptNormalizationService = null;
   }
 
   /**
@@ -32,9 +30,6 @@ class TonePilotAIServicesManager {
       this.summarizerService = new window.SummarizerService();
       this.promptService = new window.PromptService();
       this.translationService = new window.TranslationService();
-      this.searchService = new window.SearchService();
-      this.promptNormalizationService = new window.PromptNormalizationService();
-      await this.promptNormalizationService.initialize();
 
       // Debug: Check if services were created successfully
       console.log('Service initialization status:', {
@@ -151,33 +146,8 @@ class TonePilotAIServicesManager {
     try {
       this.uiManager.hideError();
 
-      // Check if detail mode is active - set up step tracking if so
-      const detailMode = this.stateManager.getDetailMode();
-      if (detailMode) {
-        // Initialize step tracking in the result object that will be used for Alternative 1 tab
-        this.currentStepTracker = {
-          steps: [
-            { id: 'routing', title: 'Analyzing your request', status: 'active', substeps: [
-              { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing', active: true }
-            ]},
-            { id: 'search', title: 'Web Research', status: 'pending', substeps: [
-              { id: 'search-queries', icon: '🔍', text: 'Generating search queries', active: false },
-              { id: 'web-search', icon: '🌐', text: 'Performing web searches', active: false },
-              { id: 'context-analysis', icon: '📊', text: 'Analyzing search results', active: false }
-            ]},
-            { id: 'processing', title: 'Generating AI output', status: 'pending', substeps: [
-              { id: 'ai-service', icon: '⚙️', text: 'Running AI service', active: false }
-            ]},
-            { id: 'reflection', title: 'Reflecting on output quality', status: 'pending', substeps: [
-              { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy', active: false },
-              { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities', active: false }
-            ]},
-            { id: 'improvement', title: 'Enhancing output', status: 'pending', substeps: [
-              { id: 'generating-improved', icon: '✨', text: 'Generating improved version', active: false }
-            ]}
-          ]
-        };
-      }
+      // Clear any previous steps
+      this.stateManager.clearProcessingSteps();
 
       // Check if translate mode is active
       const translateMode = this.stateManager.getTranslateMode();
@@ -195,73 +165,42 @@ class TonePilotAIServicesManager {
         throw new Error('No text to process');
       }
 
+      // Step 1: Analyzing request
+      this.stateManager.addProcessingStep('Analyzing your request');
+
       // Route the input to determine intent
       const routing = await this.semanticRouter.route(inputText);
       console.log('🎯 Routing result:', routing);
 
-      // Update step indicator in real-time - routing completed
-      if (detailMode) {
-        try {
-          this.uiManager.updateDetailModeStepIndicator('routing', 'completed');
-        } catch (error) {
-          console.error('❌ Error updating step indicator:', error);
-        }
-      }
+      // Mark step as complete
+      this.stateManager.updateLastStepStatus('complete');
 
-      // Perform web search if in detail mode
-      let searchContext = '';
-      if (detailMode) {
-        try {
-          this.uiManager.updateDetailModeStepIndicator('search', 'active', 'search-queries');
-          searchContext = await this.performWebSearch(inputText, routing);
-          this.uiManager.updateDetailModeStepIndicator('search', 'completed');
-        } catch (error) {
-          console.error('❌ Web search failed:', error);
-          // Continue without search context
-          this.uiManager.updateDetailModeStepIndicator('search', 'completed');
-        }
-      }
-
-      // Normalize prompt and generate follow-up steps in Plan mode
-      let normalizedPrompt = inputText;
-      let followUpSteps = '';
-      if (detailMode) {
-        try {
-          const normalizedData = await this.normalizePlanModePrompt(inputText, routing, searchContext);
-          normalizedPrompt = normalizedData.normalizedPrompt;
-          followUpSteps = normalizedData.followUpSteps;
-          console.log('📋 Normalized prompt:', normalizedPrompt);
-          console.log('📝 Follow-up steps generated:', followUpSteps);
-        } catch (error) {
-          console.error('❌ Prompt normalization failed:', error);
-          // Continue with original prompt
-        }
-      }
-
-      // Update step indicator - start processing
-      if (detailMode) {
-        try {
-          this.uiManager.updateDetailModeStepIndicator('processing', 'active', 'ai-service');
-        } catch (error) {
-          console.error('❌ Error updating step indicator:', error);
-        }
-      }
-
-      // Process based on intent (use normalized prompt in Plan mode)
-      const effectiveInputText = detailMode ? normalizedPrompt : inputText;
+      // Process based on intent
       let result;
+
+      // Step 2: Processing with appropriate service
+      const intentLabels = {
+        'proofread': 'Proofreading text',
+        'summarize': 'Summarizing content',
+        'rewrite': 'Rewriting text',
+        'write': 'Generating content',
+        'translate': 'Translating text'
+      };
+      const stepLabel = intentLabels[routing.intent] || 'Processing text';
+      this.stateManager.addProcessingStep(stepLabel);
+
       switch (routing.intent) {
         case 'proofread':
-          result = await this.handleProofread(textToProcess, routing, searchContext, followUpSteps, conversationContext);
+          result = await this.handleProofread(textToProcess, routing, conversationContext);
           break;
         case 'summarize':
-          result = await this.handleSummarize(textToProcess, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps, conversationContext);
+          result = await this.handleSummarize(textToProcess, selectionData?.platform, selectionData?.context, routing, conversationContext);
           break;
         case 'rewrite':
-          result = await this.handleRewrite(textToProcess, effectiveInputText, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps, conversationContext);
+          result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context, routing, conversationContext);
           break;
         case 'write':
-          result = await this.handleWrite(effectiveInputText, selectionData?.text, selectionData?.platform, routing, searchContext, followUpSteps, conversationContext);
+          result = await this.handleWrite(inputText, selectionData?.text, selectionData?.platform, routing, conversationContext);
           break;
         case 'translate':
           // Extract target language from input, fallback to settings
@@ -272,17 +211,15 @@ class TonePilotAIServicesManager {
             fromSettings: targetLanguage,
             using: translationTarget
           });
-          result = await this.handleTranslation(textToProcess, translationTarget, searchContext, followUpSteps, conversationContext);
+          result = await this.handleTranslation(textToProcess, translationTarget, conversationContext);
           break;
         default:
-          result = await this.handleRewrite(textToProcess, effectiveInputText, selectionData?.platform, selectionData?.context, routing, searchContext, followUpSteps, conversationContext);
+          result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context, routing, conversationContext);
           break;
       }
 
-      // Update step indicator in real-time - processing completed
-      if (detailMode) {
-        this.uiManager.updateDetailModeStepIndicator('processing', 'completed');
-      }
+      // Mark processing step as complete
+      this.stateManager.updateLastStepStatus('complete');
 
       // Apply translation if translate mode is active (but skip if intent was already translate)
       console.log('🔍 Checking translation condition:', {
@@ -295,8 +232,11 @@ class TonePilotAIServicesManager {
       });
 
       if (translateMode && result?.primary && routing.intent !== 'translate') {
+        // Step 3: Applying translation
+        this.stateManager.addProcessingStep(`Translating to ${targetLanguage}`);
         console.log('🌐 Translate mode active, translating result to:', targetLanguage);
         result = await this.applyTranslationToResult(result, targetLanguage);
+        this.stateManager.updateLastStepStatus('complete');
         console.log('✅ Translation completed, result:', result);
       } else {
         console.log('⏭️ Skipping translation:', {
@@ -306,28 +246,7 @@ class TonePilotAIServicesManager {
         });
       }
 
-      // Apply reflection if detail mode is active
-      console.log('🔍 Detail mode check:', {
-        detailMode: detailMode,
-        resultExists: !!result?.primary
-      });
-
-      if (detailMode && result?.primary) {
-        console.log('📋 Detail mode active, applying reflection...');
-        this.uiManager.updateDetailModeStepIndicator('reflection', 'active', 'quality-analysis');
-        result = await this.applyReflection(result, textToProcess, inputText, routing);
-        console.log('✅ Reflection completed, result:', result);
-
-        // Complete all steps
-        this.uiManager.updateDetailModeStepIndicator('reflection', 'completed');
-        this.uiManager.updateDetailModeStepIndicator('improvement', 'completed');
-      } else if (detailMode) {
-        // If detail mode but no reflection needed, complete remaining steps
-        this.uiManager.updateDetailModeStepIndicator('reflection', 'completed');
-        this.uiManager.updateDetailModeStepIndicator('improvement', 'completed');
-      }
-
-      // Add step tracker to result if detail mode is active
+      // Prepare final result
       const finalResult = {
         ...result,
         intent: routing.intent,
@@ -337,19 +256,9 @@ class TonePilotAIServicesManager {
         score: routing.score
       };
 
-      if (detailMode && this.currentStepTracker) {
-        // Don't set alt1 here - let uiManager handle step indicators progressively
-        finalResult.detailModeSteps = true;
-        console.log('📋 Detail mode result created - uiManager will handle step indicators:', {
-          detailModeSteps: finalResult.detailModeSteps,
-          note: 'Step indicators managed by uiManager progressively'
-        });
-      }
-
       console.log('🎯 Final result object:', {
         hasAlt1: !!finalResult.alt1,
         hasAlt2: !!finalResult.alt2,
-        detailMode: detailMode,
         keys: Object.keys(finalResult)
       });
 
@@ -368,7 +277,7 @@ class TonePilotAIServicesManager {
    * @param {string} text - Text to proofread
    * @returns {Object} Proofread results
    */
-  async handleProofread(text, routing = null, searchContext = '', followUpSteps = '', conversationContext = '') {
+  async handleProofread(text, routing = null, conversationContext = '') {
     console.log('📝 Proofreading text...');
     if (conversationContext) {
       console.log('📚 Using conversation context for proofreading');
@@ -401,7 +310,7 @@ class TonePilotAIServicesManager {
    * @param {Object} context - Additional context from platform (author, engagement, etc.)
    * @returns {Object} Summary results
    */
-  async handleSummarize(text, platform, context, routing = null, searchContext = '', followUpSteps = '', conversationContext = '') {
+  async handleSummarize(text, platform, context, routing = null, conversationContext = '') {
     console.log('📋 Summarizing text...');
     if (conversationContext) {
       console.log('📚 Using conversation context for summarization');
@@ -453,7 +362,7 @@ class TonePilotAIServicesManager {
    * @param {Object} context - Additional context from platform
    * @returns {Object} Rewrite results
    */
-  async handleRewrite(text, instructions, platform, context, routing = null, searchContext = '', followUpSteps = '', conversationContext = '') {
+  async handleRewrite(text, instructions, platform, context, routing = null, conversationContext = '') {
     console.log('✏️ Rewriting text...');
     if (conversationContext) {
       console.log('📚 Using conversation context for rewriting');
@@ -461,8 +370,6 @@ class TonePilotAIServicesManager {
     console.log('Platform:', platform);
     console.log('Context:', context);
     console.log('📝 Routing info:', routing);
-    console.log('🔍 Search context available:', searchContext ? 'Yes' : 'No');
-    console.log('📋 Follow-up steps available:', followUpSteps ? 'Yes' : 'No');
 
     // Determine tone from instructions (enhanced with routing info)
     const tone = routing?.tones?.length > 0 ? routing.tones[0] : this.extractToneFromInstructions(instructions);
@@ -485,19 +392,9 @@ class TonePilotAIServicesManager {
 
         prompt += `\n\nText to process: "${text}"`;
 
-        // Add search context if available
-        if (searchContext) {
-          prompt = `${searchContext}\n\n${prompt}\n\nUse the web search results above as reference for up-to-date information.`;
-        }
-
         // Add conversation context if available
         if (conversationContext) {
           prompt = `${conversationContext}\n\n${prompt}\n\nConsider the conversation history above when rewriting.`;
-        }
-
-        // Add follow-up steps if available (Plan mode)
-        if (followUpSteps) {
-          prompt = `${prompt}\n\nFOLLOW-UP STEPS TO CONSIDER:\n${followUpSteps}\n\nConsider these steps when processing the request.`;
         }
 
         // Add document context if relevant (resume, email templates, etc.)
@@ -580,7 +477,7 @@ class TonePilotAIServicesManager {
    * @param {string} platform - Platform identifier for context-aware writing
    * @returns {Object} Write results
    */
-  async handleWrite(query, context, platform, routing = null, searchContext = '', followUpSteps = '', conversationContext = '') {
+  async handleWrite(query, context, platform, routing = null, conversationContext = '') {
     console.log('✏️ Writing text...');
     if (conversationContext) {
       console.log('📚 Using conversation context for writing');
@@ -589,8 +486,6 @@ class TonePilotAIServicesManager {
     console.log('Context:', context);
     console.log('Platform:', platform);
     console.log('📝 Routing info:', routing);
-    console.log('🔍 Search context available:', searchContext ? 'Yes' : 'No');
-    console.log('📋 Follow-up steps available:', followUpSteps ? 'Yes' : 'No');
 
     // Determine tone from query (enhanced with routing info)
     const tone = routing?.tones?.length > 0 ? routing.tones[0] : this.extractToneFromQuery(query);
@@ -605,11 +500,6 @@ class TonePilotAIServicesManager {
       try {
         const promptService = new window.PromptService();
         let prompt = query;
-
-        // Add search context if available
-        if (searchContext) {
-          prompt = `${searchContext}\n\n${prompt}\n\nUse the web search results above as reference for up-to-date information.`;
-        }
 
         // Add conversation context if available
         if (conversationContext) {
@@ -631,11 +521,6 @@ class TonePilotAIServicesManager {
         // Add context if provided
         if (context && context.trim()) {
           prompt = `${prompt}\n\nContext to consider: "${context}"`;
-        }
-
-        // Add follow-up steps if available (Plan mode)
-        if (followUpSteps) {
-          prompt = `${prompt}\n\nFOLLOW-UP STEPS TO CONSIDER:\n${followUpSteps}\n\nAddress these steps in your response.`;
         }
 
         // Add document context if relevant (resume, email templates, etc.)
@@ -668,19 +553,8 @@ class TonePilotAIServicesManager {
         platform: platform
       });
 
-      // Build enhanced context with search results and document data
+      // Build enhanced context with document data
       let enhancedContext = context;
-
-      // Add search context if available
-      if (searchContext) {
-        enhancedContext = searchContext + (enhancedContext ? `\n\n${enhancedContext}` : '');
-      }
-
-      // Add follow-up steps if available (Plan mode)
-      if (followUpSteps) {
-        const stepsContext = `\n\nFOLLOW-UP STEPS TO CONSIDER:\n${followUpSteps}\n\nAddress these steps in your response.`;
-        enhancedContext = enhancedContext ? `${enhancedContext}${stepsContext}` : stepsContext.trim();
-      }
 
       // Add document data if relevant (resume, email templates, etc.)
       const documentContext = await this.getDocumentContext(query);
@@ -746,13 +620,22 @@ class TonePilotAIServicesManager {
    * @param {string} targetLanguage - Target language code
    * @returns {Object} Translation results
    */
-  async handleTranslation(text, targetLanguage, searchContext = '', followUpSteps = '', conversationContext = '') {
+  async handleTranslation(text, targetLanguage, conversationContext = '') {
     console.log('🌐 Translating text...');
     if (conversationContext) {
       console.log('📚 Using conversation context for translation');
     }
     console.log('Text:', text);
     console.log('Target language:', targetLanguage);
+
+    // Validate input
+    if (!text || text.trim().length === 0) {
+      throw new Error('No text provided for translation');
+    }
+
+    if (!targetLanguage) {
+      throw new Error('No target language specified. Please specify a target language (e.g., "translate to Spanish")');
+    }
 
     if (!this.translationService.isTranslatorAvailable) {
       console.warn('⚠️ Translation service not available, using language model fallback');
@@ -761,6 +644,12 @@ class TonePilotAIServicesManager {
         const promptService = new window.PromptService();
         const prompt = `Translate the following text to ${this.getLanguageName(targetLanguage)}:\n\n"${text}"`;
         const result = await promptService.send(prompt);
+
+        // Validate result
+        if (!result || result.trim().length === 0) {
+          throw new Error('Language model returned empty translation');
+        }
+
         const translationResult = {
           primary: result,
           original: text,
@@ -791,6 +680,12 @@ class TonePilotAIServicesManager {
         metadata: result.metadata
       };
       console.log('🔄 Translation result (translator):', translationResult);
+
+      // Validate result has content
+      if (!translationResult.primary || translationResult.primary.trim().length === 0) {
+        throw new Error('Translation returned empty result');
+      }
+
       return translationResult;
     } catch (error) {
       console.error('❌ Translation service failed, using language model fallback:', error);
@@ -798,6 +693,12 @@ class TonePilotAIServicesManager {
         const promptService = new window.PromptService();
         const prompt = `Translate the following text to ${this.getLanguageName(targetLanguage)}:\n\n"${text}"`;
         const result = await promptService.send(prompt);
+
+        // Validate result
+        if (!result || result.trim().length === 0) {
+          throw new Error('Language model returned empty translation');
+        }
+
         return {
           primary: result,
           original: text,
@@ -1261,345 +1162,6 @@ class TonePilotAIServicesManager {
   }
 
   /**
-   * Update step tracker for detail mode
-   * @param {string} stepId - Step identifier
-   * @param {string} status - New status (pending, active, completed)
-   * @param {string} activeSubstep - Optional substep to activate
-   */
-  updateStepTracker(stepId, status, activeSubstep = null) {
-    if (!this.currentStepTracker) return;
-
-    const step = this.currentStepTracker.steps.find(s => s.id === stepId);
-    if (!step) return;
-
-    step.status = status;
-
-    // Clear all active substeps
-    step.substeps.forEach(substep => substep.active = false);
-
-    // Set active substep if provided
-    if (activeSubstep && status === 'active') {
-      const substep = step.substeps.find(s => s.id === activeSubstep);
-      if (substep) substep.active = true;
-    }
-
-    console.log(`📋 Step tracker updated: ${stepId} -> ${status}${activeSubstep ? ` (${activeSubstep})` : ''}`);
-  }
-
-  /**
-   * Generate step indicator HTML from current step tracker
-   * @returns {string} HTML for step indicator
-   */
-  generateStepIndicatorHTML() {
-    if (!this.currentStepTracker) return '';
-
-    const stepsHTML = this.currentStepTracker.steps.map(step => {
-      const substepsHTML = step.substeps.map(substep => `<div class="substep" ${substep.active ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`).join('');
-
-      return `<li class="step-item" data-step="${step.id}" data-status="${step.status}"><div class="step-circle"></div><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
-    }).join('');
-
-    return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;
-  }
-
-  /**
-   * Apply reflection to improve the AI output when detail mode is active
-   * @param {Object} result - Original AI result
-   * @param {string} originalText - Original input text
-   * @param {string} userQuery - User's query/instructions
-   * @param {Object} routing - Routing information
-   * @returns {Object} Result with reflection and potentially improved output
-   */
-  async applyReflection(result, originalText, userQuery, routing) {
-    try {
-      console.log('📋 Starting reflection process...');
-
-      // Create reflection prompt
-      const reflectionPrompt = this.createReflectionPrompt(result, originalText, userQuery, routing);
-
-      // Use prompt service to perform reflection
-      const reflectionService = new window.PromptService();
-      const reflectionOutput = await reflectionService.send(reflectionPrompt);
-
-      console.log('🔍 Reflection output:', reflectionOutput);
-
-      // Parse reflection to determine if improvement is needed
-      this.uiManager.updateDetailModeStepIndicator('reflection', 'active', 'improvement-check');
-      const reflection = this.parseReflectionOutput(reflectionOutput);
-
-      console.log('🔍 Reflection parsed:', {
-        score: reflection.score,
-        shouldImprove: reflection.shouldImprove,
-        analysis: reflection.analysis.substring(0, 100) + '...',
-        suggestions: reflection.suggestions.substring(0, 100) + '...'
-      });
-
-      // If reflection suggests improvement, generate improved version
-      if (reflection.shouldImprove) {
-        console.log('📈 Reflection suggests improvement, generating enhanced version...');
-        this.uiManager.updateDetailModeStepIndicator('reflection', 'completed');
-        this.uiManager.updateDetailModeStepIndicator('improvement', 'active', 'generating-improved');
-        const improvedOutput = await this.generateImprovedOutput(
-          result, originalText, userQuery, routing, reflection.suggestions
-        );
-
-        // Return result with both original and improved versions
-        return {
-          ...result,
-          reflection: reflection.analysis,
-          alt1: improvedOutput,
-          improvedByReflection: true
-        };
-      } else {
-        // Return result with reflection analysis only
-        return {
-          ...result,
-          reflection: reflection.analysis,
-          reflectionScore: reflection.score
-        };
-      }
-
-    } catch (error) {
-      console.error('❌ Reflection process failed:', error);
-      // Return original result if reflection fails
-      return {
-        ...result,
-        reflectionError: error.message
-      };
-    }
-  }
-
-  /**
-   * Create reflection prompt based on the task type and output
-   * @param {Object} result - AI result to reflect on
-   * @param {string} originalText - Original input text
-   * @param {string} userQuery - User's query
-   * @param {Object} routing - Routing information
-   * @returns {string} Reflection prompt
-   */
-  createReflectionPrompt(result, originalText, userQuery, routing) {
-    const taskType = routing.intent || 'general';
-    const output = result.primary;
-
-    const basePrompt = `You are an expert AI output evaluator. Please analyze the following AI-generated output and provide a detailed reflection. Be thorough and look for ways to enhance the output.
-
-TASK TYPE: ${taskType}
-ORIGINAL TEXT: "${originalText}"
-USER QUERY: "${userQuery}"
-AI OUTPUT: "${output}"
-
-Please evaluate:
-1. Quality and accuracy of the output
-2. How well it addresses the user's request
-3. Clarity and coherence
-4. Appropriateness for the task type
-5. Areas for potential improvement
-
-Look for opportunities to:
-- Enhance clarity and precision
-- Add missing context or details
-- Improve structure and flow
-- Better match the user's intent
-- Strengthen the overall impact
-
-Provide your analysis in this format:
-ANALYSIS: [Your detailed analysis]
-SCORE: [Rate 1-10, where 10 is excellent]
-IMPROVE: [YES/NO - whether output could be significantly improved. Default to YES unless the output is truly exceptional]
-SUGGESTIONS: [Provide specific suggestions for improvement]`;
-
-    return basePrompt;
-  }
-
-  /**
-   * Parse reflection output to extract analysis and improvement suggestions
-   * @param {string} reflectionText - Raw reflection output
-   * @returns {Object} Parsed reflection data
-   */
-  parseReflectionOutput(reflectionText) {
-    try {
-      const lines = reflectionText.split('\n');
-      let analysis = '';
-      let score = 7; // Default score
-      let shouldImprove = false;
-      let suggestions = '';
-
-      let currentSection = '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('ANALYSIS:')) {
-          currentSection = 'analysis';
-          analysis = trimmed.replace('ANALYSIS:', '').trim();
-        } else if (trimmed.startsWith('SCORE:')) {
-          const scoreMatch = trimmed.match(/(\d+)/);
-          if (scoreMatch) {
-            score = parseInt(scoreMatch[1]);
-          }
-        } else if (trimmed.startsWith('IMPROVE:')) {
-          const improveText = trimmed.replace('IMPROVE:', '').trim().toUpperCase();
-          shouldImprove = improveText === 'YES';
-        } else if (trimmed.startsWith('SUGGESTIONS:')) {
-          currentSection = 'suggestions';
-          suggestions = trimmed.replace('SUGGESTIONS:', '').trim();
-        } else if (currentSection === 'analysis' && trimmed) {
-          analysis += ' ' + trimmed;
-        } else if (currentSection === 'suggestions' && trimmed) {
-          suggestions += ' ' + trimmed;
-        }
-      }
-
-      return {
-        analysis: analysis.trim(),
-        score: score,
-        shouldImprove: shouldImprove || score < 8, // Improve if AI suggests it OR score is below 8
-        suggestions: suggestions.trim()
-      };
-    } catch (error) {
-      console.error('❌ Failed to parse reflection output:', error);
-      return {
-        analysis: reflectionText,
-        score: 7,
-        shouldImprove: false,
-        suggestions: ''
-      };
-    }
-  }
-
-  /**
-   * Generate improved output based on reflection suggestions
-   * @param {Object} result - Original result
-   * @param {string} originalText - Original input text
-   * @param {string} userQuery - User query
-   * @param {Object} routing - Routing information
-   * @param {string} suggestions - Improvement suggestions from reflection
-   * @returns {string} Improved output
-   */
-  async generateImprovedOutput(result, originalText, userQuery, routing, suggestions) {
-    try {
-      const improvementPrompt = `Based on the reflection analysis, please improve the following output:
-
-ORIGINAL TEXT: "${originalText}"
-USER QUERY: "${userQuery}"
-CURRENT OUTPUT: "${result.primary}"
-IMPROVEMENT SUGGESTIONS: "${suggestions}"
-
-Please provide an improved version that addresses the suggestions while maintaining the core intent and style. Output only the improved text without explanations.`;
-
-      const improvementService = new window.PromptService();
-      const improvedOutput = await improvementService.send(improvementPrompt);
-
-      return improvedOutput.trim();
-    } catch (error) {
-      console.error('❌ Failed to generate improved output:', error);
-      return result.primary; // Return original if improvement fails
-    }
-  }
-
-  /**
-   * Normalize user prompt for Plan mode and generate follow-up steps
-   * Uses the PromptNormalizationService
-   * @param {string} userInput - Original user input
-   * @param {Object} routing - Routing information
-   * @param {string} searchContext - Web search results context
-   * @returns {Promise<Object>} Normalized prompt and follow-up steps
-   */
-  async normalizePlanModePrompt(userInput, routing, searchContext = '') {
-    try {
-      console.log('📋 Normalizing prompt for Plan mode using PromptNormalizationService');
-
-      // Use the dedicated normalization service
-      const result = await this.promptNormalizationService.normalizeAndGenerateSteps(
-        userInput,
-        routing,
-        searchContext
-      );
-
-      console.log('✅ Prompt normalized and steps generated via service');
-      return result;
-
-    } catch (error) {
-      console.error('❌ Prompt normalization failed:', error);
-      // Return original input if normalization fails
-      return {
-        normalizedPrompt: userInput,
-        followUpSteps: ''
-      };
-    }
-  }
-
-  /**
-   * Perform web search in Plan mode
-   * @param {string} userQuery - User's query
-   * @param {Object} routing - Routing information
-   * @returns {Promise<string>} Search context for AI
-   */
-  async performWebSearch(userQuery, routing) {
-    try {
-      console.log('🔍 Starting web search for Plan mode');
-
-      // Load search service config from storage
-      await this.searchService.loadConfigFromStorage();
-
-      if (!this.searchService.isReady()) {
-        console.warn('⚠️ Search service not configured, skipping web search');
-        return '';
-      }
-
-      // Generate search queries based on user input using AI
-      this.uiManager.updateDetailModeStepIndicator('search', 'active', 'search-queries');
-
-      const searchQueriesPrompt = `Based on the following user query, generate 1-3 highly relevant web search queries that would help provide accurate, up-to-date information to answer or fulfill the request.
-
-USER QUERY: "${userQuery}"
-INTENT: ${routing.intent}
-${routing.outputType ? `OUTPUT TYPE: ${routing.outputType}` : ''}
-
-Return ONLY the search queries, one per line, without numbering or explanations.`;
-
-      const queryGenerator = new window.PromptService();
-      const searchQueriesText = await queryGenerator.send(searchQueriesPrompt);
-      const searchQueries = searchQueriesText
-        .trim()
-        .split('\n')
-        .filter(q => q.trim().length > 0)
-        .slice(0, 3);
-
-      console.log('🔍 Generated search queries:', searchQueries);
-
-      // Perform web searches
-      this.uiManager.updateDetailModeStepIndicator('search', 'active', 'web-search');
-
-      const searchResults = await this.searchService.multiSearch(searchQueries, {
-        numResults: 3 // 3 results per query
-      });
-
-      console.log('✅ Search results retrieved:', searchResults.length);
-
-      // Analyze and summarize search results
-      this.uiManager.updateDetailModeStepIndicator('search', 'active', 'context-analysis');
-
-      let combinedContext = 'WEB SEARCH RESULTS:\n\n';
-
-      searchResults.forEach((result, index) => {
-        if (result.items && result.items.length > 0) {
-          combinedContext += `Query: "${result.query}"\n`;
-          combinedContext += this.searchService.createSearchSummary(result, 3);
-          combinedContext += '\n';
-        }
-      });
-
-      console.log('📊 Search context created, length:', combinedContext.length);
-
-      return combinedContext;
-
-    } catch (error) {
-      console.error('❌ Web search failed:', error);
-      return ''; // Return empty context on failure
-    }
-  }
-
-  /**
    * Get service status for debugging
    * @returns {Object} Service status information
    */
@@ -1611,8 +1173,6 @@ Return ONLY the search queries, one per line, without numbering or explanations.
       proofreaderService: Boolean(this.proofreaderService),
       rewriterService: Boolean(this.rewriterService),
       summarizerService: Boolean(this.summarizerService),
-      searchService: Boolean(this.searchService),
-      promptNormalizationService: Boolean(this.promptNormalizationService),
       ready: this.isReady()
     };
   }

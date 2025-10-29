@@ -960,7 +960,6 @@
 .step-item {
   position: relative;
   margin-bottom: 0;
-  padding: 0px 0px 15px 0px;
   transition: all 0.2s ease;
   list-style: none;
   display: flex;

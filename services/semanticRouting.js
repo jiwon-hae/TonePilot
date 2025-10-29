@@ -6,16 +6,35 @@
 // SemanticRouter - Routes user input to appropriate intents
 class SemanticRouter {
   constructor(classifierPrompt = null) {
-    this.classifier = classifierPrompt || new PromptService("You are an intent classifier.");
+    // Note: classifier is not currently used in route() method (uses pattern matching instead)
+    try {
+      this.classifier = classifierPrompt || (window.PromptService ? new window.PromptService("You are an intent classifier.") : null);
+    } catch (error) {
+      console.warn('⚠️ SemanticRouter: Could not initialize PromptService classifier:', error);
+      this.classifier = null;
+    }
     this.threshold = 0.55;
 
+    console.log('✅ SemanticRouter initialized with pattern-based routing');
+
     // Fast patterns for action classification
+    // IMPORTANT: Order matters! More specific patterns first, generic ones last
     this.patterns = {
-      proofread: /\b(proofread|grammar|spelling|typo|punctuation|correct|fix)\b/i,
-      rewrite: /\b(revise|rewrite|rephrase|improve|clarity|concise|tone|formal|casual|polish|enhance|refine)\b/i,
-      write: /\b(draft|write|compose|create|email|cover\s*letter|blog|message|outreach|letter)\b/i,
-      summarize: /\b(summarize|summary|tldr|key\s*points|brief|overview|abstract|condensed?|digest)\b/i,
-      translate: /\b(translate|translation|convert|to\s+(english|spanish|french|german|italian|portuguese|russian|japanese|korean|chinese|arabic|hindi|dutch|polish|turkish|vietnamese|thai|indonesian|swedish|danish|finnish|norwegian|czech|hungarian|romanian|ukrainian|greek|hebrew))\b/i,
+      // Most specific: Translation (check first to avoid being overridden by generic keywords)
+      // Requires either: target language OR demonstrative reference ("this", "that", "the text")
+      translate: /\b(translate\s+(this|that|the\s+(text|content|message|email|document))|translation\s+to\s+|translat(e|ing)\s+to\s+(english|spanish|french|german|italian|portuguese|russian|japanese|korean|chinese|arabic|hindi|dutch|polish|turkish|vietnamese|thai|indonesian|swedish|danish|finnish|norwegian|czech|hungarian|romanian|ukrainian|greek|hebrew)|to\s+(english|spanish|french|german|italian|portuguese|russian|japanese|korean|chinese|arabic|hindi|dutch|polish|turkish|vietnamese|thai|indonesian|swedish|danish|finnish|norwegian|czech|hungarian|romanian|ukrainian|greek|hebrew))\b/i,
+
+      // Specific: Summarization
+      summarize: /\b(summarize|summary|tldr|tl;dr|key\s*points|brief|overview|abstract|condensed?|digest|sum\s*up)\b/i,
+
+      // Specific: Content writing (draft new content)
+      write: /\b(draft|compose|create\s+(a\s+|an\s+)?(email|letter|post|blog|message|content)|write\s+(a\s+|an\s+|me\s+(a\s+|an\s+)?)?(email|letter|post|blog|message)|cover\s*letter|outreach\s*(email|message))\b/i,
+
+      // Specific: Proofreading (only specific keywords, removed generic "fix" and "correct")
+      proofread: /\b(proofread|check\s+(grammar|spelling)|grammar\s+check|spell\s+check|typos?|punctuation\s+(error|check))\b/i,
+
+      // Generic: Rewriting (most general, checked last. Removed overly generic keywords)
+      rewrite: /\b(revise|rewrite|rephrase|paraphrase|re-write|re-phrase|polish|refine|adjust|modify)\b/i,
     };
 
     // Output type patterns for format/style detection
@@ -32,20 +51,22 @@ class SemanticRouter {
       tutorial: /\b(tutorial|guide|how.to|instructions|walkthrough|step.by.step|explanation)\b/i
     };
 
-    // Tone/style patterns
+    // Tone/style patterns (more specific to avoid false matches)
     this.tonePatterns = {
-      formal: /\b(formal|professional|business|corporate|official|polite|respectful)\b/i,
-      casual: /\b(casual|informal|friendly|relaxed|conversational|laid.back)\b/i,
-      persuasive: /\b(persuasive|convincing|compelling|sales|marketing|pitch)\b/i,
-      urgent: /\b(urgent|immediate|asap|quickly|rush|time.sensitive|priority)\b/i,
-      diplomatic: /\b(diplomatic|tactful|careful|sensitive|polite|considerate)\b/i,
-      confident: /\b(confident|assertive|strong|direct|bold|decisive)\b/i,
+      formal: /\b(more\s+formal|make.*formal|formal\s+(tone|style)|professional\s+(tone|style)|business\s+(tone|style)|corporate|official)\b/i,
+      casual: /\b(more\s+casual|make.*casual|casual\s+(tone|style)|informal\s+(tone|style)|friendly\s+(tone|style)|conversational|laid.back)\b/i,
+      persuasive: /\b(persuasive|convincing|compelling|sales\s+(tone|pitch)|marketing|pitch)\b/i,
+      urgent: /\b(urgent|immediate|asap|as\s+soon\s+as\s+possible|quickly|rush|time.sensitive|high\s+priority)\b/i,
+      diplomatic: /\b(diplomatic|tactful|carefully|sensitive|considerate)\b/i,
+      confident: /\b(confident|assertive|strong\s+(tone|voice)|direct|bold|decisive)\b/i,
       empathetic: /\b(empathetic|understanding|compassionate|supportive|warm|caring)\b/i
     };
   }
 
   async route(input) {
+    console.log('🎯 SemanticRouter.route() called with input:', input);
     const query = (input || "").trim().toLowerCase();
+    console.log('🎯 Normalized query:', query);
 
     let matchedIntent = null;
     let matchedOutputType = null;
@@ -54,10 +75,14 @@ class SemanticRouter {
     // Fast pattern matching for intent
     for (const [intent, pattern] of Object.entries(this.patterns)) {
       if (pattern.test(query)) {
-        console.log(`🎯 Matched intent pattern for ${intent}:`, pattern);
+        console.log(`✅ Matched intent: "${intent}" with pattern:`, pattern);
         matchedIntent = intent;
         break;
       }
+    }
+
+    if (!matchedIntent) {
+      console.log('ℹ️ No intent pattern matched, will use fallback: rewrite');
     }
 
     // Detect output type
