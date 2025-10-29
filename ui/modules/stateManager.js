@@ -17,7 +17,7 @@ class TonePilotStateManager {
       currentFormalityToggle: window.TONEPILOT_CONSTANTS.DEFAULTS.FORMALITY_TOGGLE,
       targetLanguage: window.TONEPILOT_CONSTANTS.DEFAULTS.TARGET_LANGUAGE,
       translateMode: false,
-      detailMode: false
+      planMode: false
     };
 
     this.listeners = new Map();
@@ -112,7 +112,7 @@ class TonePilotStateManager {
       currentMaxCharacters: window.TONEPILOT_CONSTANTS.DEFAULTS.MAX_CHARACTERS,
       currentFormalityToggle: window.TONEPILOT_CONSTANTS.DEFAULTS.FORMALITY_TOGGLE,
       translateMode: false,
-      detailMode: false
+      planMode: false
     };
   }
 
@@ -182,26 +182,19 @@ class TonePilotStateManager {
     return this.state.targetLanguage || 'en';
   }
 
-  /**
-   * Set detail mode
-   * @param {boolean} enabled - Detail mode enabled
-   */
-  setDetailMode(enabled) {
-    console.log('🔄 setDetailMode called:', {
-      enabled: enabled,
-      previousValue: this.state.detailMode
-    });
-    this.setState('detailMode', enabled);
-    console.log('🔄 detailMode state after setState:', this.state.detailMode);
+  getPlanMode(){
+    return this.state.planMode;
   }
 
-  /**
-   * Get detail mode state
-   * @returns {boolean} Detail mode enabled
-   */
-  getDetailMode() {
-    return this.state.detailMode;
+  setPlanMode(enabled){
+    console.log('🔄 setPlanMode called:', {
+      enabled: enabled,
+      previousValue: this.state.planMode
+    });
+    this.setState('planMode', enabled);
+    console.log('🔄 planMode state after setState:', this.state.planMode);
   }
+
 }
 
 // Export to window for Chrome extension compatibility
