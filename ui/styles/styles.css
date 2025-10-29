@@ -543,7 +543,7 @@ textarea {
 
 /* Sources section */
 .sources-section {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .source-cards {
@@ -672,13 +672,13 @@ textarea {
 
 /* Steps section */
 .steps-section {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .steps-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 10px 0;
   cursor: pointer;
   user-select: none;
@@ -693,7 +693,7 @@ textarea {
 }
 
 .steps-header .chevron {
-  font-size: 18px;
+  font-size: 16px;
   transition: transform 0.2s ease;
   transform: rotate(90deg); /* Default: pointing down when expanded */
 }
@@ -712,22 +712,16 @@ textarea {
 
 .step-item {
   display: flex;
-  gap: 12px;
-  padding: 8px 0;
-  align-items: flex-start;
+  padding: 4px 0;
+  align-items: center;
+  height: 30px;
 }
 
-.step-number {
-  width: 24px;
-  height: 24px;
+.step-bullet {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--secondary-bg);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
+  background: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -736,11 +730,47 @@ textarea {
   color: var(--text-primary);
   font-size: 14px;
   line-height: 1.6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+}
+
+.step-status {
+  font-size: 11px;
+  width: 16px;
+  height: 22px;
+  text-align: center;
+  margin-left: auto;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  line-height: 22px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.step-text .step-status.loading {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.step-status.error {
+  color: #ef4444;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 /* Content section */
 .content-section {
-  margin-top: 16px;
+  margin-top: 8px;
 }
 
 .result-content {
@@ -1079,31 +1109,6 @@ textarea {
   font-family: Arial, sans-serif;
   color: #ddd;
   background: #111;
-}
-
-
-.step-item {
-  position: relative;
-  display: flex;
-}
-
-.step-bullet {
-  position: absolute;
-  left: -8px;
-  top: 6px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #444;
-  border: 2px solid #888;
-}
-
-.step-item[data-status="active"] .step-bullet {
-  background: var(--icons);
-}
-
-.step-content {
-  margin-left: 15px;
 }
 
 .step-title {
