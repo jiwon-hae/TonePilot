@@ -8,59 +8,7 @@ class TonePilotConversationItemManager {
     this.activeItems = new Map(); // Track active conversation items
   }
 
-  /**
-   * Create a new conversation item with all functionality
-   * @param {string} inputText - User's input text
-   * @returns {Object} Conversation item container and elements
-   */
-  createConversationItem(inputText) {
-    const safeInputText = String(inputText || '').trim();
-
-    // Create main container
-    const containerDiv = document.createElement('div');
-    containerDiv.className = 'conversation-container conversation-container-loading';
-    containerDiv.setAttribute('data-conversation-id', this.generateId());
-
-    // Create query display
-    const queryDisplay = this.createQueryDisplay(safeInputText);
-
-    // Create result section with tabs and actions
-    const resultSection = this.createResultSection();
-
-    // Assemble container
-    containerDiv.appendChild(queryDisplay);
-    containerDiv.appendChild(resultSection);
-
-    // Get references to key elements (new tab structure)
-    const primaryContent = resultSection.querySelector('#primary-content');
-    const alt1Content = resultSection.querySelector('#alt1-content');
-    const alt2Content = resultSection.querySelector('#alt2-content');
-
-    // Add event listeners for this item
-    this.bindItemEvents(containerDiv);
-
-    // Store item reference (new tab structure)
-    const itemData = {
-      container: containerDiv,
-      queryDisplay,
-      resultSection,
-      primaryContent,
-      alt1Content,
-      alt2Content,
-      inputText: safeInputText,
-      results: {
-        primary: null,
-        alt1: null,
-        alt2: null
-      }
-    };
-
-    const itemId = containerDiv.getAttribute('data-conversation-id');
-    this.activeItems.set(itemId, itemData);
-
-    return itemData;
-  }
-
+  
   /**
    * Create query display element
    * @param {string} inputText - User's input text
