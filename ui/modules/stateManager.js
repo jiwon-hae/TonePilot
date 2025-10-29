@@ -17,7 +17,8 @@ class TonePilotStateManager {
       currentFormalityToggle: window.TONEPILOT_CONSTANTS.DEFAULTS.FORMALITY_TOGGLE,
       targetLanguage: window.TONEPILOT_CONSTANTS.DEFAULTS.TARGET_LANGUAGE,
       translateMode: false,
-      planMode: false
+      planMode: false,
+      processingSteps: [] // Array of {step: string, timestamp: Date, status: 'in_progress'|'complete'|'error'}
     };
 
     this.listeners = new Map();
@@ -112,7 +113,8 @@ class TonePilotStateManager {
       currentMaxCharacters: window.TONEPILOT_CONSTANTS.DEFAULTS.MAX_CHARACTERS,
       currentFormalityToggle: window.TONEPILOT_CONSTANTS.DEFAULTS.FORMALITY_TOGGLE,
       translateMode: false,
-      planMode: false
+      planMode: false,
+      processingSteps: []
     };
   }
 
@@ -193,6 +195,51 @@ class TonePilotStateManager {
     });
     this.setState('planMode', enabled);
     console.log('🔄 planMode state after setState:', this.state.planMode);
+  }
+
+  /**
+   * Clear all processing steps
+   */
+  clearProcessingSteps() {
+    this.state.processingSteps = [];
+    this.notifyListeners('processingSteps', [], null);
+  }
+
+  /**
+   * Add a processing step
+   * @param {string} step - Step description
+   * @param {string} status - Step status ('in_progress', 'complete', 'error')
+   */
+  addProcessingStep(step, status = 'in_progress') {
+    const stepData = {
+      step,
+      timestamp: new Date(),
+      status
+    };
+    this.state.processingSteps.push(stepData);
+    console.log(`🔍 Step added: ${step} [${status}]`);
+    this.notifyListeners('processingSteps', [...this.state.processingSteps], null);
+  }
+
+  /**
+   * Update the last processing step status
+   * @param {string} status - New status ('complete', 'error')
+   */
+  updateLastStepStatus(status) {
+    if (this.state.processingSteps.length > 0) {
+      const lastStep = this.state.processingSteps[this.state.processingSteps.length - 1];
+      lastStep.status = status;
+      console.log(`✅ Step completed: ${lastStep.step}`);
+      this.notifyListeners('processingSteps', [...this.state.processingSteps], null);
+    }
+  }
+
+  /**
+   * Get all processing steps
+   * @returns {Array} Array of step objects
+   */
+  getProcessingSteps() {
+    return [...this.state.processingSteps];
   }
 
 }

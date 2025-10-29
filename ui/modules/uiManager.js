@@ -10,6 +10,94 @@ class TonePilotUIManager {
     this.eventListeners = [];
     this.conversationHistory = [];
     this.previousResult = null;
+    this.currentConversationContainer = null; // Track current container for real-time updates
+  }
+
+  /**
+   * Set up listeners for processing steps
+   */
+  setupStepListeners() {
+    if (!this.stateManager) {
+      console.warn('⚠️ StateManager not available for step listeners');
+      return;
+    }
+
+    // Listen for processing steps changes
+    this.stateManager.addListener('processingSteps', (steps) => {
+      console.log('🔍 Processing steps updated:', steps);
+      this.updateStepsDisplay(steps);
+    });
+
+    console.log('✅ Step listeners set up');
+  }
+
+  /**
+   * Update steps display in real-time
+   * @param {Array} steps - Array of step objects
+   */
+  updateStepsDisplay(steps) {
+    if (!this.currentConversationContainer) {
+      console.log('ℹ️ No current conversation container for steps update');
+      return;
+    }
+
+    const stepsSection = this.currentConversationContainer.stepsSection;
+    const stepsContent = this.currentConversationContainer.stepsContent;
+
+    if (!stepsSection || !stepsContent) {
+      console.warn('⚠️ Steps section not found in current container');
+      return;
+    }
+
+    // Clear existing steps
+    stepsContent.innerHTML = '';
+
+    if (steps && steps.length > 0) {
+      // Show steps section if hidden
+      stepsSection.style.display = 'block';
+
+      // Check if all steps are complete
+      const allComplete = steps.every(step => step.status === 'complete');
+
+      // Add each step
+      steps.forEach((stepData, index) => {
+        const stepDiv = document.createElement('div');
+        stepDiv.className = 'step-item';
+
+        // Add status indicator
+        let statusIcon = '';
+        if (stepData.status === 'complete') {
+          statusIcon = '<span class="step-status"> </span>';
+        } else if (stepData.status === 'error') {
+          statusIcon = '<span class="step-status error">✗</span>';
+        } else {
+          // in_progress
+          statusIcon = '<span class="step-status loading">⋯</span>';
+        }
+
+        stepDiv.innerHTML = `
+          <div class="step-bullet"></div>
+          <div class="step-text">${this.escapeHtml(stepData.step)} ${statusIcon}</div>
+        `;
+        stepsContent.appendChild(stepDiv);
+      });
+
+      // Add "Complete" step at the end if all steps are complete
+      if (allComplete) {
+        const completeDiv = document.createElement('div');
+        completeDiv.className = 'step-item';
+        completeDiv.innerHTML = `
+          <div class="step-bullet"></div>
+          <div class="step-text">Complete <span class="step-status"> </span></div>
+        `;
+        stepsContent.appendChild(completeDiv);
+      }
+
+      console.log('✅ Steps display updated with', steps.length, 'steps');
+    } else {
+      // No steps yet, hide section
+      stepsSection.style.display = 'none';
+    }
   }
 
   /**
@@ -338,6 +426,9 @@ class TonePilotUIManager {
     const newContainer = this.createConversationContainer(safeInputText, planMode);
     console.log('📦 createConversationContainer returned:', newContainer);
 
+    // Set as current container for real-time step updates
+    this.currentConversationContainer = newContainer;
+
     // Animate to show the new container with smooth transitions
     console.log('🎬 About to call animateToNewContainer');
     this.animateToNewContainer(newContainer);
@@ -402,7 +493,7 @@ class TonePilotUIManager {
       </div>
       <div class="steps-section collapsed" style="display: none;">
         <div class="steps-header">
-          <span>Assistant steps</span>
+          <span>Steps</span>
           <span class="chevron">›</span>
         </div>
         <div class="steps-content"></div>
@@ -738,11 +829,13 @@ class TonePilotUIManager {
         conversationContainer.sourcesSection.style.display = 'block';
       }
 
-      // Show steps if available (or use placeholder for UI/UX testing)
+      // Steps are now updated in real-time via state listener
+      // Just ensure steps section is visible if we have steps
       if (conversationContainer.stepsSection) {
-        const stepsToShow = results.steps || this.getPlaceholderSteps();
-        this.populateSteps(conversationContainer.stepsContent, stepsToShow);
-        conversationContainer.stepsSection.style.display = 'block';
+        const currentSteps = this.stateManager.getProcessingSteps();
+        if (currentSteps && currentSteps.length > 0) {
+          conversationContainer.stepsSection.style.display = 'block';
+        }
       }
     } else {
       console.warn('showResults called with invalid conversationContainer');
@@ -1124,25 +1217,6 @@ class TonePilotUIManager {
    * Get placeholder steps for UI/UX testing
    * @returns {Array} Placeholder step objects
    */
-  getPlaceholderSteps() {
-    return [
-      {
-        text: 'Analyzing the user query and determining the best approach'
-      },
-      {
-        text: 'Searching relevant web sources for accurate information'
-      },
-      {
-        text: 'Synthesizing information from multiple sources'
-      },
-      {
-        text: 'Generating comprehensive response based on findings'
-      },
-      {
-        text: 'Reviewing and refining the output for clarity'
-      }
-    ];
-  }
 
   /**
    * Adjust filler after content generation to maintain proper positioning

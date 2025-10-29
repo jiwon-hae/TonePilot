@@ -268,6 +268,9 @@ class TonePilotPanel {
       // Set up state listeners
       this.setupStateListeners();
 
+      // Set up step listeners for real-time step tracking
+      this.uiManager.setupStepListeners();
+
       // Initialize button appearances
       this.updatePlanButtonAppearance(this.stateManager.getPlanMode());
 

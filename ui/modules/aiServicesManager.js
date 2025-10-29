@@ -146,6 +146,9 @@ class TonePilotAIServicesManager {
     try {
       this.uiManager.hideError();
 
+      // Clear any previous steps
+      this.stateManager.clearProcessingSteps();
+
       // Check if translate mode is active
       const translateMode = this.stateManager.getTranslateMode();
       const targetLanguage = this.stateManager.getTargetLanguage();
@@ -162,12 +165,30 @@ class TonePilotAIServicesManager {
         throw new Error('No text to process');
       }
 
+      // Step 1: Analyzing request
+      this.stateManager.addProcessingStep('Analyzing your request');
+
       // Route the input to determine intent
       const routing = await this.semanticRouter.route(inputText);
       console.log('🎯 Routing result:', routing);
 
+      // Mark step as complete
+      this.stateManager.updateLastStepStatus('complete');
+
       // Process based on intent
       let result;
+
+      // Step 2: Processing with appropriate service
+      const intentLabels = {
+        'proofread': 'Proofreading text',
+        'summarize': 'Summarizing content',
+        'rewrite': 'Rewriting text',
+        'write': 'Generating content',
+        'translate': 'Translating text'
+      };
+      const stepLabel = intentLabels[routing.intent] || 'Processing text';
+      this.stateManager.addProcessingStep(stepLabel);
+
       switch (routing.intent) {
         case 'proofread':
           result = await this.handleProofread(textToProcess, routing, conversationContext);
@@ -197,6 +218,9 @@ class TonePilotAIServicesManager {
           break;
       }
 
+      // Mark processing step as complete
+      this.stateManager.updateLastStepStatus('complete');
+
       // Apply translation if translate mode is active (but skip if intent was already translate)
       console.log('🔍 Checking translation condition:', {
         translateMode: translateMode,
@@ -208,8 +232,11 @@ class TonePilotAIServicesManager {
       });
 
       if (translateMode && result?.primary && routing.intent !== 'translate') {
+        // Step 3: Applying translation
+        this.stateManager.addProcessingStep(`Translating to ${targetLanguage}`);
         console.log('🌐 Translate mode active, translating result to:', targetLanguage);
         result = await this.applyTranslationToResult(result, targetLanguage);
+        this.stateManager.updateLastStepStatus('complete');
         console.log('✅ Translation completed, result:', result);
       } else {
         console.log('⏭️ Skipping translation:', {
