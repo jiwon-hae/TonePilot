@@ -8,7 +8,7 @@ class TonePilotConversationItemManager {
     this.activeItems = new Map(); // Track active conversation items
   }
 
-  
+
   /**
    * Create query display element
    * @param {string} inputText - User's input text
@@ -22,36 +22,36 @@ class TonePilotConversationItemManager {
     return queryDisplay;
   }
 
-  /**
-   * Create result section with tabs, loading area, content, and actions
-   * @returns {HTMLElement} Result section element
-   */
-  createResultSection() {
-    const resultSection = document.createElement('div');
-    resultSection.className = 'result-section visible';
-    resultSection.style.display = 'block';
-    resultSection.innerHTML = `
-      <div class="result-tabs">
-        <button class="result-tab active" data-tab="primary">Assistant</button>
-        <button class="result-tab" data-tab="alt1" style="display: none;">
-            <img src="../icons/branch.png" alt="Branch" style="width:10px; height:10px;" />
-            <span>Steps</span>
-        </button>
-        <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
-      </div>
-      <div id="primary-content" class="tab-content">
-        <div class="loading-message">* Chroming it…</div>
-        <div class="result-actions" style="display: none;">
-        <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
-          <img src="../icons/copy.png" alt="Copy" width="12" height="12" />
-        </button>
-      </div>
-      </div>
-      <div id="alt1-content" class="tab-content" style="display: none;"></div>
-      <div id="alt2-content" class="tab-content" style="display: none;"></div>
-    `;
-    return resultSection;
-  }
+  // /**
+  //  * Create result section with tabs, loading area, content, and actions
+  //  * @returns {HTMLElement} Result section element
+  //  */
+  // createResultSection() {
+  //   const resultSection = document.createElement('div');
+  //   resultSection.className = 'result-section visible';
+  //   resultSection.style.display = 'block';
+  //   resultSection.innerHTML = `
+  //     <div class="result-tabs">
+  //       <button class="result-tab active" data-tab="primary">Assistant</button>
+  //       <button class="result-tab" data-tab="alt1" style="display: none;">
+  //           <img src="../icons/branch.png" alt="Branch" style="width:10px; height:10px;" />
+  //           <span>Steps</span>
+  //       </button>
+  //       <button class="result-tab" data-tab="alt2" style="display: none;">Alternative 2</button>
+  //     </div>
+  //     <div id="primary-content" class="tab-content">
+  //       <div class="loading-message">* Chroming it…</div>
+  //       <div class="result-actions" style="display: none;">
+  //       <button class="btn btn-secondary copy-btn" title="Copy to clipboard">
+  //         <img src="../icons/copy.png" alt="Copy" width="12" height="12" />
+  //       </button>
+  //     </div>
+  //     </div>
+  //     <div id="alt1-content" class="tab-content" style="display: none;"></div>
+  //     <div id="alt2-content" class="tab-content" style="display: none;"></div>
+  //   `;
+  //   return resultSection;
+  // }
 
   /**
    * Bind all event listeners for a conversation item

@@ -139,7 +139,6 @@ class TonePilotUIManager {
         { element: 'copyBtn', handler: () => this.handleCopy() },
         { element: 'replaceBtn', handler: () => this.handleReplace() },
         { element: 'selectMediaBtn', handler: () => this.handleSelectMedia() },
-        { element: 'cropBtn', handler: () => this.handleCrop() },
         { element: 'submitBtn', handler: async () => await this.handleSubmit() },
         { element: 'mediaBtn', handler: () => this.handleOpenMedia() },
         { element: 'translateBtn', handler: () => this.handleToggleTranslate() },
@@ -2205,7 +2204,6 @@ class TonePilotUIManager {
   }
   handleReplace() { console.log('Replace clicked'); }
   handleSelectMedia() { console.log('Select media clicked'); }
-  handleCrop() { console.log('Crop clicked'); }
   handleSubmit() { console.log('🔴 WRONG handleSubmit called - this is the uiManager stub, not panel.js'); }
 
   handleClearAll() {
