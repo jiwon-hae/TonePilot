@@ -5,8 +5,8 @@
 
 // SemanticRouter - Routes user input to appropriate intents
 class SemanticRouter {
-  constructor(classifierPrompt = null) {
-    // Note: classifier is not currently used in route() method (uses pattern matching instead)
+  constructor(classifierPrompt = null, useAIRouting = true) {
+    // Initialize AI classifier for intelligent routing
     try {
       this.classifier = classifierPrompt || (window.PromptService ? new window.PromptService("You are an intent classifier.") : null);
     } catch (error) {
@@ -14,8 +14,9 @@ class SemanticRouter {
       this.classifier = null;
     }
     this.threshold = 0.55;
+    this.useAIRouting = useAIRouting && this.classifier !== null;
 
-    console.log('✅ SemanticRouter initialized with pattern-based routing');
+    console.log(`✅ SemanticRouter initialized with ${this.useAIRouting ? 'AI-based' : 'pattern-based'} routing`);
 
     // Fast patterns for action classification
     // IMPORTANT: Order matters! More specific patterns first, generic ones last
@@ -27,14 +28,16 @@ class SemanticRouter {
       // Specific: Summarization
       summarize: /\b(summarize|summary|tldr|tl;dr|key\s*points|brief|overview|abstract|condensed?|digest|sum\s*up)\b/i,
 
-      // Specific: Content writing (draft new content)
-      write: /\b(draft|compose|create\s+(a\s+|an\s+)?(email|letter|post|blog|message|content)|write\s+(a\s+|an\s+|me\s+(a\s+|an\s+)?)?(email|letter|post|blog|message)|cover\s*letter|outreach\s*(email|message))\b/i,
+      // Specific: Content writing (draft new content, can use selection as reference)
+      // Includes response/reply patterns that indicate NEW content creation
+      write: /\b(draft|compose|create\s+(a\s+|an\s+)?(email|letter|post|blog|message|content|response|reply)|write\s+(a\s+|an\s+|me\s+(a\s+|an\s+)?)?(email|letter|post|blog|message|response|reply)|cover\s*letter|outreach\s*(email|message)|(respond|reply|answer)\s+(to|about)|based\s+on|using\s+(this|the)|with\s+reference\s+to)\b/i,
 
       // Specific: Proofreading (only specific keywords, removed generic "fix" and "correct")
       proofread: /\b(proofread|check\s+(grammar|spelling)|grammar\s+check|spell\s+check|typos?|punctuation\s+(error|check))\b/i,
 
-      // Generic: Rewriting (most general, checked last. Removed overly generic keywords)
-      rewrite: /\b(revise|rewrite|rephrase|paraphrase|re-write|re-phrase|polish|refine|adjust|modify)\b/i,
+      // Generic: Rewriting (modifying existing text directly)
+      // "make this..." is a strong indicator of rewrite
+      rewrite: /\b(make\s+(this|it|the\s+(text|content|message|email))\s+|change\s+(this|it)\s+|improve\s+(this|it)|revise|rewrite|rephrase|paraphrase|re-write|re-phrase|polish|refine|adjust|modify|more\s+(formal|casual|professional|friendly|diplomatic))\b/i,
     };
 
     // Output type patterns for format/style detection
@@ -63,11 +66,142 @@ class SemanticRouter {
     };
   }
 
-  async route(input) {
+  async route(input, options = {}) {
     console.log('🎯 SemanticRouter.route() called with input:', input);
+    console.log('🎯 Routing options:', options);
     const query = (input || "").trim().toLowerCase();
     console.log('🎯 Normalized query:', query);
 
+    const hasSelectedText = options.hasSelectedText || false;
+    const selectedText = options.selectedText || '';
+
+    // Try AI-based routing first if enabled
+    if (this.useAIRouting) {
+      try {
+        const aiResult = await this.routeWithAI(input, hasSelectedText, selectedText);
+        if (aiResult) {
+          console.log('🤖 Using AI-based routing result:', aiResult);
+          return aiResult;
+        }
+      } catch (error) {
+        console.warn('⚠️ AI routing failed, falling back to pattern matching:', error);
+      }
+    }
+
+    // Fallback to pattern-based routing
+    return this.routeWithPatterns(query, hasSelectedText);
+  }
+
+  /**
+   * Route using AI-based classification
+   * @param {string} input - User input
+   * @param {boolean} hasSelectedText - Whether user has text selected
+   * @param {string} selectedText - The selected text (optional)
+   * @returns {Promise<Object|null>} Routing result or null if failed
+   */
+  async routeWithAI(input, hasSelectedText = false, selectedText = '') {
+    if (!this.classifier) {
+      return null;
+    }
+
+    const contextInfo = hasSelectedText
+      ? `\n\nContext: User has selected text${selectedText ? `: "${selectedText.substring(0, 100)}..."` : ''}`
+      : '\n\nContext: User has NO selected text';
+
+    const prompt = `Analyze the following user request and classify it into one of these intents:
+- proofread: Check grammar, spelling, and punctuation of SELECTED text
+- summarize: Create a summary or extract key points from SELECTED text
+- write: Draft NEW content (can use selected text as REFERENCE/CONTEXT)
+- rewrite: Modify or rephrase the SELECTED text itself
+- translate: Translate SELECTED text to another language
+
+CRITICAL DISTINCTION when selected text exists:
+- "write" = Create NEW content, using selection as reference/context
+  Examples: "write a response to this", "draft a reply to this email", "create a cover letter based on this job posting"
+- "rewrite" = Modify the SELECTED text itself
+  Examples: "make this more formal", "rephrase this", "improve this", "polish this"
+
+Key indicators for "write" (even with selection):
+- "write/draft/create/compose [something] to/for/about/based on [this/the selection]"
+- "respond to", "reply to", "answer"
+- "generate", "produce new"
+
+Key indicators for "rewrite" (requires selection):
+- "make this...", "change this...", "improve this..."
+- "rephrase", "reword", "rewrite"
+- "more formal/casual/professional"
+- Direct modification verbs without creating something new
+
+Also identify:
+- Output type (email, letter, post, document, list, script, summary, response, announcement, tutorial)
+- Tone/style (formal, casual, persuasive, urgent, diplomatic, confident, empathetic)
+
+User request: "${input}"${contextInfo}
+
+Respond in this exact JSON format:
+{
+  "intent": "the main intent",
+  "outputType": "detected output type or null",
+  "tones": ["tone1", "tone2"],
+  "confidence": 0.0-1.0
+}`;
+
+    try {
+      const response = await this.classifier.send(prompt);
+      console.log('🤖 AI classifier raw response:', response);
+
+      // Parse JSON from response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn('⚠️ Could not find JSON in AI response');
+        return null;
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      // Validate response
+      if (!parsed.intent || !['proofread', 'summarize', 'write', 'rewrite', 'translate'].includes(parsed.intent)) {
+        console.warn('⚠️ Invalid intent from AI:', parsed.intent);
+        return null;
+      }
+
+      return {
+        intent: parsed.intent,
+        outputType: parsed.outputType || null,
+        tones: Array.isArray(parsed.tones) ? parsed.tones : [],
+        score: parsed.confidence || 0.85,
+        via: "ai-classifier"
+      };
+    } catch (error) {
+      console.error('❌ AI routing error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Toggle AI-based routing on/off
+   * @param {boolean} enabled - Whether to use AI routing
+   */
+  setAIRouting(enabled) {
+    this.useAIRouting = enabled && this.classifier !== null;
+    console.log(`🔧 AI routing ${this.useAIRouting ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Check if AI routing is available and enabled
+   * @returns {boolean}
+   */
+  isAIRoutingEnabled() {
+    return this.useAIRouting;
+  }
+
+  /**
+   * Route using pattern-based matching (fast fallback)
+   * @param {string} query - Normalized query string
+   * @param {boolean} hasSelectedText - Whether user has text selected
+   * @returns {Object} Routing result
+   */
+  routeWithPatterns(query, hasSelectedText = false) {
     let matchedIntent = null;
     let matchedOutputType = null;
     let matchedTones = [];
@@ -81,8 +215,28 @@ class SemanticRouter {
       }
     }
 
+    // Smart fallback based on context
     if (!matchedIntent) {
-      console.log('ℹ️ No intent pattern matched, will use fallback: rewrite');
+      // Check if query suggests using selection as reference vs modifying it
+      const isReferencePattern = /\b(for|about|regarding|concerning|on|to|in\s+response)\b/i;
+      const isModificationPattern = /\b(this|it|the\s+(text|content|message))\b/i;
+
+      let defaultIntent;
+      if (hasSelectedText) {
+        // With selection: check if user wants to use it as reference or modify it
+        if (isReferencePattern.test(query)) {
+          defaultIntent = 'write'; // "help me with something for this" = write using selection as reference
+        } else if (isModificationPattern.test(query)) {
+          defaultIntent = 'rewrite'; // "help me with this" = modify the selection
+        } else {
+          defaultIntent = 'write'; // Ambiguous, default to write (safer assumption)
+        }
+      } else {
+        defaultIntent = 'write'; // No selection = create new content
+      }
+
+      console.log(`ℹ️ No intent pattern matched, using smart fallback: ${defaultIntent} (hasSelectedText: ${hasSelectedText}, query pattern hints: ${isReferencePattern.test(query) ? 'reference' : isModificationPattern.test(query) ? 'modification' : 'ambiguous'})`);
+      matchedIntent = defaultIntent;
     }
 
     // Detect output type
@@ -102,19 +256,14 @@ class SemanticRouter {
       }
     }
 
-    // Use matched intent or fallback to 'rewrite'
-    const intent = matchedIntent || 'rewrite';
-
-    const routingResult = {
-      intent,
+    // matchedIntent is already set above (either from pattern match or smart fallback)
+    return {
+      intent: matchedIntent,
       outputType: matchedOutputType,
       tones: matchedTones,
       score: matchedIntent ? 0.9 : 0.7,
-      via: matchedIntent ? "patterns" : "fallback"
+      via: matchedIntent ? "patterns" : "context-fallback"
     };
-
-    console.log('🎯 Complete routing result:', routingResult);
-    return routingResult;
   }
 
   normalize(input, routingResult) {
