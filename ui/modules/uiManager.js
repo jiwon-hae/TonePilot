@@ -824,11 +824,14 @@ class TonePilotUIManager {
         console.log('📑 Results ready: content section updated with AI results');
       }
 
-      // Show sources if available (or use placeholder for UI/UX testing)
+      // Show sources only if they are being referenced
       if (conversationContainer.sourcesSection) {
-        const sourcesToShow = results.sources || await this.getPlaceholderSources();
-        this.populateSources(conversationContainer.sourceCards, sourcesToShow);
-        conversationContainer.sourcesSection.style.display = 'block';
+        if (results.sources && Array.isArray(results.sources) && results.sources.length > 0) {
+          this.populateSources(conversationContainer.sourceCards, results.sources);
+          conversationContainer.sourcesSection.style.display = 'block';
+        } else {
+          conversationContainer.sourcesSection.style.display = 'none';
+        }
       }
 
       // Steps are now updated in real-time via state listener
@@ -2462,7 +2465,7 @@ class TonePilotUIManager {
       id: 'routing',
       title: 'Analyzing your request',
       substeps: [
-        { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing' }
+        { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing', reason: 'reason placeholder' }
       ],
       status: 'active',
       activeSubstep: 'semantic-routing'
@@ -2538,7 +2541,10 @@ class TonePilotUIManager {
    * @returns {string} Initial step indicator HTML
    */
   generateInitialStepIndicatorHTML() {
-    return `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active"><div class="step-circle"></div><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><span class="substep-text">Determining intent and routing</span></div></div></div></li></ul></div>`;
+    // Only show reason in Plan mode
+    const isPlanMode = this.currentDetailContainer?.planMode || false;
+    const reasonHTML = isPlanMode ? '<div class="substep-reason">reason placeholder</div>' : '';
+    return `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active"><div class="step-circle"></div><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><div class="substep-content"><span class="substep-text">Determining intent and routing</span>${reasonHTML}</div></div></div></div></li></ul></div>`;
   }
 
   /**
@@ -2716,7 +2722,16 @@ class TonePilotUIManager {
     this.progressiveSteps.forEach((step, index) => {
       const substepsHTML = step.substeps.map(substep => {
         const isActive = step.activeSubstep === substep.id;
-        return `<div class="substep" ${isActive ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`;
+        // Only show reason in Plan mode
+        const isPlanMode = this.currentDetailContainer?.planMode || false;
+        const reasonHTML = (isPlanMode && substep.reason) ? `<div class="substep-reason">${substep.reason}</div>` : '';
+        return `<div class="substep" ${isActive ? 'data-active="true"' : ''}>
+          <span class="substep-icon">${substep.icon}</span>
+          <div class="substep-content">
+            <span class="substep-text">${substep.text}</span>
+            ${reasonHTML}
+          </div>
+        </div>`;
       }).join('');
 
       stepsHTML += `<li class="step-item" data-step="${step.id}" data-status="${step.status}"><div class="step-circle"></div><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
@@ -2772,7 +2787,16 @@ class TonePilotUIManager {
     const stepsHTML = steps.map(step => {
       const substepsHTML = step.substeps.map(substep => {
         const isActive = step.status === 'active' && step.activeSubstep === substep.id;
-        return `<div class="substep" ${isActive ? 'data-active="true"' : ''}><span class="substep-icon">${substep.icon}</span><span class="substep-text">${substep.text}</span></div>`;
+        // Only show reason in Plan mode
+        const isPlanMode = this.currentDetailContainer?.planMode || false;
+        const reasonHTML = (isPlanMode && substep.reason) ? `<div class="substep-reason">${substep.reason}</div>` : '';
+        return `<div class="substep" ${isActive ? 'data-active="true"' : ''}>
+          <span class="substep-icon">${substep.icon}</span>
+          <div class="substep-content">
+            <span class="substep-text">${substep.text}</span>
+            ${reasonHTML}
+          </div>
+        </div>`;
       }).join('');
 
       return `<li class="step-item" data-step="${step.id}" data-status="${step.status ?? 'pending'}"><div class="step-circle"></div><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;

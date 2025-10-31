@@ -168,8 +168,11 @@ class TonePilotAIServicesManager {
       // Step 1: Analyzing request
       this.stateManager.addProcessingStep('Analyzing your request');
 
-      // Route the input to determine intent
-      const routing = await this.semanticRouter.route(inputText);
+      // Route the input to determine intent (with selection context)
+      const routing = await this.semanticRouter.route(inputText, {
+        hasSelectedText: Boolean(selectionData?.text),
+        selectedText: selectionData?.text || ''
+      });
       console.log('🎯 Routing result:', routing);
 
       // Mark step as complete
@@ -211,7 +214,7 @@ class TonePilotAIServicesManager {
             fromSettings: targetLanguage,
             using: translationTarget
           });
-          result = await this.handleTranslation(textToProcess, translationTarget, conversationContext);
+          result = await this.handleTranslation(textToProcess, translationTarget, selectionData?.platform, selectionData?.context, conversationContext);
           break;
         default:
           result = await this.handleRewrite(textToProcess, inputText, selectionData?.platform, selectionData?.context, routing, conversationContext);
@@ -618,15 +621,19 @@ class TonePilotAIServicesManager {
    * Handle translation request
    * @param {string} text - Text to translate
    * @param {string} targetLanguage - Target language code
+   * @param {string} platform - Platform identifier for context-aware translation
+   * @param {Object} context - Additional context from platform
    * @returns {Object} Translation results
    */
-  async handleTranslation(text, targetLanguage, conversationContext = '') {
+  async handleTranslation(text, targetLanguage, platform = null, context = null, conversationContext = '') {
     console.log('🌐 Translating text...');
     if (conversationContext) {
       console.log('📚 Using conversation context for translation');
     }
     console.log('Text:', text);
     console.log('Target language:', targetLanguage);
+    console.log('Platform:', platform);
+    console.log('Context:', context);
 
     // Validate input
     if (!text || text.trim().length === 0) {
@@ -639,10 +646,19 @@ class TonePilotAIServicesManager {
 
     if (!this.translationService.isTranslatorAvailable) {
       console.warn('⚠️ Translation service not available, using language model fallback');
-      // Fallback to language model
+      // Fallback to language model with platform context
       try {
         const promptService = new window.PromptService();
-        const prompt = `Translate the following text to ${this.getLanguageName(targetLanguage)}:\n\n"${text}"`;
+        let prompt = '';
+
+        // Add platform-specific context if available
+        if (platform) {
+          const platformContext = this.generateTranslationPlatformContext(platform, context);
+          prompt = `${platformContext}\n\n`;
+        }
+
+        prompt += `Translate the following text to ${this.getLanguageName(targetLanguage)}:\n\n"${text}"`;
+
         const result = await promptService.send(prompt);
 
         // Validate result
@@ -655,7 +671,8 @@ class TonePilotAIServicesManager {
           original: text,
           type: 'translate',
           service: 'languageModel',
-          targetLanguage: targetLanguage
+          targetLanguage: targetLanguage,
+          platform: platform
         };
         console.log('🔄 Translation result (languageModel):', translationResult);
         return translationResult;
@@ -691,7 +708,16 @@ class TonePilotAIServicesManager {
       console.error('❌ Translation service failed, using language model fallback:', error);
       try {
         const promptService = new window.PromptService();
-        const prompt = `Translate the following text to ${this.getLanguageName(targetLanguage)}:\n\n"${text}"`;
+        let prompt = '';
+
+        // Add platform-specific context if available
+        if (platform) {
+          const platformContext = this.generateTranslationPlatformContext(platform, context);
+          prompt = `${platformContext}\n\n`;
+        }
+
+        prompt += `Translate the following text to ${this.getLanguageName(targetLanguage)}:\n\n"${text}"`;
+
         const result = await promptService.send(prompt);
 
         // Validate result
@@ -704,7 +730,8 @@ class TonePilotAIServicesManager {
           original: text,
           type: 'translate',
           service: 'languageModel',
-          targetLanguage: targetLanguage
+          targetLanguage: targetLanguage,
+          platform: platform
         };
       } catch (fallbackError) {
         throw new Error(`Both translation and language model failed: ${error.message}; ${fallbackError.message}`);
@@ -739,8 +766,8 @@ class TonePilotAIServicesManager {
 
       console.log('🔄 Translating result:', textToTranslate);
 
-      // Use translation service to translate the result
-      const translationResult = await this.handleTranslation(textToTranslate, targetLanguage);
+      // Use translation service to translate the result (inherit platform from original result if available)
+      const translationResult = await this.handleTranslation(textToTranslate, targetLanguage, result.platform, result.context);
 
       // Return modified result with translated primary content
       return {
@@ -811,6 +838,31 @@ class TonePilotAIServicesManager {
 
     console.log('⚠️ No target language detected in input, using settings default');
     return null;
+  }
+
+  /**
+   * Generate platform-specific context for translation
+   * @param {string} platform - Platform identifier ('linkedin', 'gmail', etc.)
+   * @param {Object} context - Additional context from platform
+   * @returns {string} Platform-appropriate context string for translation
+   */
+  generateTranslationPlatformContext(platform, context) {
+    switch (platform) {
+      case 'linkedin':
+        return 'You are translating professional content from LinkedIn. Maintain professional tone and business terminology appropriate for the platform. Preserve industry-specific terms when appropriate.';
+
+      case 'gmail':
+        return 'You are translating email content. Maintain email etiquette and formality level. Preserve proper salutations and closings suitable for email communication.';
+
+      case 'twitter':
+        return 'You are translating content from Twitter/X. Keep concise and social media appropriate. Preserve hashtags when relevant.';
+
+      case 'facebook':
+        return 'You are translating content from Facebook. Maintain casual, social networking tone appropriate for the platform.';
+
+      default:
+        return 'You are translating web content. Maintain the original tone and formality level while ensuring natural expression in the target language.';
+    }
   }
 
   /**
