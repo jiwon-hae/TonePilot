@@ -728,7 +728,7 @@ textarea {
 .step-text {
   flex: 1;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
   display: flex;
   align-items: center;
@@ -963,7 +963,15 @@ textarea {
 }
 
 .website-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.website-icon-fallback {
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .website-details {
@@ -1105,31 +1113,23 @@ textarea {
 }
 
 .step-indicator {
-  padding: 10px;
   font-family: Arial, sans-serif;
   color: #ddd;
-  background: #111;
 }
 
 .step-title {
-  font-size: 15px;
-  font-weight: bold;
-}
-
-.step-substeps {
-  margin-left: 10px;
+  font-size: 13px;
 }
 
 .substep {
   font-size: 13px;
-  color: #aaa;
+  color: #6e6e6e;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: left;
 }
 
 .substep[data-active="true"] {
-  color: #fff;
+  color: #6e6e6e;
 }
 
 .substep-icon {

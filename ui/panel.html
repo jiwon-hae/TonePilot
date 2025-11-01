@@ -11,6 +11,13 @@
 
   <!-- Document parsing libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // Configure PDF.js worker for better performance
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      console.log('✅ PDF.js worker configured');
+    }
+  </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
 
@@ -77,7 +84,8 @@
     <div class="footer">
       <div id="textInputWrapper" class="text-input-wrapper">
         <div id="websiteInfo" class="website-info" style="display: none;">
-          <div class="website-icon">🌐</div>
+          <img id="websiteIcon" class="website-icon" style="display: none;" alt="🌐" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+          <div class="website-icon-fallback">🌐</div>
           <div class="website-details">
             <div class="website-name" id="websiteName">Loading...</div>
             <div class="website-url" id="websiteUrl">Loading...</div>
@@ -137,30 +145,6 @@
         <div class="settings-section">
           <div class="setting-row">
             <div class="setting-info">
-              <label class="setting-title">Max Characters</label>
-              <div class="setting-description">Maximum characters in the rewritten text</div>
-            </div>
-            <div class="setting-control">
-              <input type="number" id="maxCharactersInput" class="setting-input" min="50" max="1000" value="300"
-                placeholder="300">
-              <div class="setting-range">50-1000</div>
-            </div>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-title">Formality Level</label>
-              <div class="setting-description">Choose between casual or formal tone</div>
-            </div>
-            <div class="setting-control">
-              <div class="setting-toggle">
-                <span class="toggle-label">Casual</span>
-                <input type="checkbox" id="formalityTogglePopup" class="toggle-input">
-                <span class="toggle-label">Formal</span>
-              </div>
-            </div>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
               <label class="setting-title">Translation Language</label>
               <div class="setting-description">Target language for translation</div>
             </div>
@@ -196,24 +180,6 @@
                 <option value="el">Greek</option>
                 <option value="he">Hebrew</option>
               </select>
-            </div>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-title">Google Search API Key</label>
-              <div class="setting-description">API key for web search in Plan mode</div>
-            </div>
-            <div class="setting-control">
-              <input type="password" id="googleSearchApiKey" class="setting-input" placeholder="Enter API key">
-            </div>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-title">Google Search Engine ID</label>
-              <div class="setting-description">Custom Search Engine ID (cx)</div>
-            </div>
-            <div class="setting-control">
-              <input type="text" id="googleSearchEngineId" class="setting-input" placeholder="Enter Search Engine ID">
             </div>
           </div>
         </div>
@@ -253,7 +219,7 @@
     <div class="document-popup-overlay"></div>
     <div class="document-popup-content">
       <div class="document-popup-header">
-        <h3>Resume & Email Template</h3>
+        <h3>Resume Upload</h3>
         <button id="closeDocumentBtn" class="document-close-btn">×</button>
       </div>
       <div class="document-popup-body">
@@ -284,26 +250,6 @@
             <button id="removeResumeBtn" class="file-remove-btn">
               <img src="../icons/dumpster.png" alt="Remove" style="width:16px; height:16px;"/>
             </button>
-          </div>
-        </div>
-
-        <!-- Email Template Section -->
-        <div class="document-section">
-          <div class="section-header">
-            <img src="../icons/email.png" alt="Email" style="width:16px; height:16px; margin-right: 8px;" />
-            <span>Email Template</span>
-          </div>
-
-          <div class="template-fields">
-            <div class="field-group">
-              <label class="field-label">Subject Line</label>
-              <input type="text" id="emailSubject" class="template-input" placeholder="Enter email subject..." />
-            </div>
-
-            <div class="field-group">
-              <label class="field-label">Email Body</label>
-              <textarea id="coldEmailTemplate" class="template-textarea" rows="6" placeholder="Write your cold email template here..."></textarea>
-            </div>
           </div>
         </div>
       </div>

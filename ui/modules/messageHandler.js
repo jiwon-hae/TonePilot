@@ -111,9 +111,14 @@ class TonePilotMessageHandler {
     this.uiManager.updateSelectionDisplay(data);
     this.uiManager.hideError();
 
-    // Show website info if available
-    if (data.websiteInfo) {
-      this.handleWebsiteInfo(data.websiteInfo);
+    // Show website info - construct from selection data
+    if (data.domain || data.url) {
+      const websiteInfo = {
+        name: data.domain || 'Unknown',
+        url: data.url || '',
+        faviconUrl: data.faviconUrl || ''
+      };
+      this.handleWebsiteInfo(websiteInfo);
     }
   }
 
@@ -211,6 +216,28 @@ class TonePilotMessageHandler {
 
     if (this.uiManager.elements.websiteUrl) {
       this.uiManager.elements.websiteUrl.textContent = data.url || '';
+    }
+
+    // Update favicon
+    if (this.uiManager.elements.websiteIcon) {
+      const fallback = this.uiManager.elements.websiteIcon.nextElementSibling;
+
+      if (data.faviconUrl && data.faviconUrl.trim()) {
+        // Valid favicon URL - show icon, hide fallback
+        this.uiManager.elements.websiteIcon.src = data.faviconUrl;
+        this.uiManager.elements.websiteIcon.style.display = 'block';
+        if (fallback && fallback.classList.contains('website-icon-fallback')) {
+          fallback.style.display = 'none';
+        }
+        console.log('🎨 Favicon set to:', data.faviconUrl);
+      } else {
+        // No favicon URL - hide icon, show fallback
+        this.uiManager.elements.websiteIcon.style.display = 'none';
+        if (fallback && fallback.classList.contains('website-icon-fallback')) {
+          fallback.style.display = 'block';
+        }
+        console.log('🌐 Using fallback globe icon (no favicon URL)');
+      }
     }
 
     if (this.uiManager.elements.websiteInfo) {

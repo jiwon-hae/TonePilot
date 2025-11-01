@@ -49,7 +49,22 @@ class TonePilotUIManager {
       return;
     }
 
-    // Clear existing steps
+    // Check if Plan mode is active
+    const planMode = this.stateManager.getPlanMode();
+    const hasProgressiveSteps = this.progressiveSteps && this.progressiveSteps.length > 0;
+
+    console.log('🔄 updateStepsDisplay - planMode:', planMode, 'hasProgressiveSteps:', hasProgressiveSteps);
+
+    // Use progressive steps with reasoning if Plan mode is active
+    if (planMode && hasProgressiveSteps) {
+      stepsSection.style.display = 'block';
+      const progressiveHTML = this.generateProgressiveStepHTML(planMode);
+      stepsContent.innerHTML = progressiveHTML;
+      console.log('✅ Steps display updated with progressive steps (Plan mode)');
+      return;
+    }
+
+    // Fallback to simple step display for non-Plan mode
     stepsContent.innerHTML = '';
 
     if (steps && steps.length > 0) {
@@ -93,7 +108,7 @@ class TonePilotUIManager {
         stepsContent.appendChild(completeDiv);
       }
 
-      console.log('✅ Steps display updated with', steps.length, 'steps');
+      console.log('✅ Steps display updated with', steps.length, 'simple steps');
     } else {
       // No steps yet, hide section
       stepsSection.style.display = 'none';
@@ -652,6 +667,21 @@ class TonePilotUIManager {
 
     console.log('📋 Conversation container created with planMode:', planMode);
 
+    // Initialize progressive steps if Plan mode is active
+    if (planMode) {
+      this.progressiveSteps = [];
+      this.progressiveSteps.push({
+        id: 'routing',
+        title: 'Thinking',
+        substeps: [
+          { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing', reason: null }
+        ],
+        status: 'active',
+        activeSubstep: 'semantic-routing'
+      });
+      console.log('📋 Progressive steps initialized for Plan mode (reasons will be added by AI)');
+    }
+
     return conversationContainer;
   }
 
@@ -810,6 +840,22 @@ class TonePilotUIManager {
       if (resultDiv) {
         // Update result content (trim to remove leading/trailing whitespace)
         const contentText = results.primary || results.content || '';
+        console.log('📝 Content to display:', {
+          hasPrimary: !!results.primary,
+          hasContent: !!results.content,
+          contentLength: contentText.length,
+          contentPreview: contentText.substring(0, 100),
+          resultService: results.service
+        });
+
+        if (!contentText.trim()) {
+          console.error('❌ ERROR: Content is empty or whitespace only!', {
+            results,
+            primary: results.primary,
+            content: results.content
+          });
+        }
+
         resultDiv.textContent = contentText.trim();
         resultDiv.style.display = 'block';
         resultDiv.style.height = 'auto';
@@ -2441,12 +2487,15 @@ class TonePilotUIManager {
   /**
    * Show detail mode tab immediately upon submit
    * @param {Object} conversationContainer - The conversation container
+   * @param {boolean} planMode - Whether plan mode is active
    */
-  showPlanModeTab(conversationContainer) {
+  showPlanModeTab(conversationContainer, planMode) {
     if (!conversationContainer || !conversationContainer.resultSection) {
       console.warn('⚠️ Cannot show detail mode tab - no result section');
       return;
     }
+
+    console.log('📋 showPlanModeTab called with planMode:', planMode);
 
     // Show Alternative 1 tab immediately
     const alt1Tab = conversationContainer.resultSection.querySelector('[data-tab="alt1"]');
@@ -2461,18 +2510,22 @@ class TonePilotUIManager {
     this.progressiveSteps = [];
 
     // Initialize with first step (routing)
+    // Note: reasoning will be updated when routing completes
     this.progressiveSteps.push({
       id: 'routing',
-      title: 'Analyzing your request',
+      title: 'Thinking',
       substeps: [
-        { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing', reason: 'reason placeholder' }
+        { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing', reason: planMode ? 'Understanding what you want to accomplish' : null }
       ],
       status: 'active',
       activeSubstep: 'semantic-routing'
     });
 
     // Initialize step indicator HTML in the Alternative 1 tab content area
-    const initialStepHTML = this.generateProgressiveStepHTML();
+    const initialStepHTML = this.generateProgressiveStepHTML(planMode);
+
+    // Store planMode on the container for later reference
+    conversationContainer.planMode = planMode;
 
     // Store this in the conversation container for immediate access
     if (!conversationContainer.results) {
@@ -2538,13 +2591,12 @@ class TonePilotUIManager {
 
   /**
    * Generate initial step indicator HTML
+   * @param {boolean} planMode - Whether plan mode is active
    * @returns {string} Initial step indicator HTML
    */
-  generateInitialStepIndicatorHTML() {
-    // Only show reason in Plan mode
-    const isPlanMode = this.currentDetailContainer?.planMode || false;
-    const reasonHTML = isPlanMode ? '<div class="substep-reason">reason placeholder</div>' : '';
-    return `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active"><div class="step-circle"></div><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><div class="substep-content"><span class="substep-text">Determining intent and routing</span>${reasonHTML}</div></div></div></div></li></ul></div>`;
+  generateInitialStepIndicatorHTML(planMode = null) {
+    // No hardcoded reason - AI will provide it dynamically when routing completes
+    return `<div class="step-indicator"><ul class="step-list"><li class="step-item" data-step="routing" data-status="active"><div class="step-circle"></div><div class="step-content"><div class="step-title">Analyzing your request</div><div class="step-substeps"><div class="substep" data-active="true"><span class="substep-icon">🎯</span><div class="substep-content"><span class="substep-text">Determining intent and routing</span></div></div></div></div></li></ul></div>`;
   }
 
   /**
@@ -2552,59 +2604,44 @@ class TonePilotUIManager {
    * @param {string} stepId - Step identifier
    * @param {string} status - Status (pending, active, completed)
    * @param {string} activeSubstep - Optional active substep
+   * @param {string} reasoning - Optional reasoning to display
    */
-  updatePlanModeStepIndicator(stepId, status, activeSubstep = null) {
-    if (!this.currentDetailContainer) {
-      console.warn('⚠️ No detail container available for step update');
+  updatePlanModeStepIndicator(stepId, status, activeSubstep = null, reasoning = null) {
+    // Use currentConversationContainer instead of currentDetailContainer (which is deprecated)
+    const container = this.currentConversationContainer || this.currentDetailContainer;
+
+    if (!container) {
+      console.warn('⚠️ No conversation container available for step update');
       return;
     }
 
-    console.log('🔍 Debug currentDetailContainer:', {
-      type: typeof this.currentDetailContainer,
-      hasContainer: !!this.currentDetailContainer.container,
-      hasResultSection: !!this.currentDetailContainer.resultSection,
-      hasResults: !!this.currentDetailContainer.results,
-      containerKeys: Object.keys(this.currentDetailContainer)
+    console.log('🔍 updatePlanModeStepIndicator CALLED:', {
+      stepId,
+      status,
+      activeSubstep,
+      reasoning,
+      reasoningType: typeof reasoning,
+      reasoningLength: reasoning?.length,
+      hasContainer: !!container
     });
 
     // Initialize step tracking if it doesn't exist
     if (!this.progressiveSteps) {
       this.progressiveSteps = [];
+      console.log('📦 Initialized empty progressiveSteps array');
     }
 
-    // Ensure results property exists
-    if (!this.currentDetailContainer.results) {
-      this.currentDetailContainer.results = {};
-    }
+    console.log('📦 Current progressiveSteps before update:', JSON.stringify(this.progressiveSteps, null, 2));
 
-    // Add or update the step in progressive tracking
-    this.addOrUpdateProgressiveStep(stepId, status, activeSubstep);
+    // Add or update the step in progressive tracking with reasoning
+    this.addOrUpdateProgressiveStep(stepId, status, activeSubstep, reasoning);
 
-    // Generate HTML showing only revealed steps
-    const stepIndicatorHTML = this.generateProgressiveStepHTML();
-    this.currentDetailContainer.results.alt1 = stepIndicatorHTML;
-    this.currentStepIndicatorHTML = stepIndicatorHTML;
+    console.log('📦 Current progressiveSteps after addOrUpdate:', JSON.stringify(this.progressiveSteps, null, 2));
 
-    // If the Alternative 1 tab is currently active, update the display immediately
-    // Use the correct container element that has querySelector
-    const containerElement = this.currentDetailContainer.container;
-    if (containerElement && typeof containerElement.querySelector === 'function') {
-      const currentTab = containerElement.querySelector('.result-tab.active');
-      if (currentTab && currentTab.getAttribute('data-tab') === 'alt1') {
-        const alt1Content = containerElement.querySelector('#alt1-content');
-        if (alt1Content) {
-          alt1Content.innerHTML = stepIndicatorHTML;
-          console.log(`📋 Updated visible step indicator: ${stepId} -> ${status}`);
-        }
-      }
-    } else {
-      console.warn('⚠️ Cannot find DOM element with querySelector in currentDetailContainer', {
-        containerElement,
-        hasQuerySelector: containerElement && typeof containerElement.querySelector === 'function'
-      });
-    }
+    // Trigger steps display update which will render progressive steps in Plan mode
+    this.updateStepsDisplay(this.stateManager.getProcessingSteps());
 
-    console.log(`📋 Step indicator updated in memory: ${stepId} -> ${status}`);
+    console.log(`📋 Updated step indicator: ${stepId} -> ${status}${reasoning ? ` (reasoning: ${reasoning})` : ' (NO REASONING)'}`);
   }
 
   /**
@@ -2612,29 +2649,51 @@ class TonePilotUIManager {
    * @param {string} stepId - Step identifier
    * @param {string} status - Status (pending, active, completed)
    * @param {string} activeSubstep - Optional active substep
+   * @param {string} reasoning - Optional reasoning to display
    */
-  addOrUpdateProgressiveStep(stepId, status, activeSubstep = null) {
-    // Define step metadata
+  addOrUpdateProgressiveStep(stepId, status, activeSubstep = null, reasoning = null) {
+    console.log('🔧 addOrUpdateProgressiveStep CALLED:', {
+      stepId,
+      status,
+      activeSubstep,
+      reasoning,
+      reasoningType: typeof reasoning,
+      reasoningIsNull: reasoning === null,
+      reasoningIsUndefined: reasoning === undefined,
+      reasoningLength: reasoning?.length
+    });
+
+    // Define step metadata (no hardcoded reasons - AI will provide them dynamically)
     const stepDefinitions = {
       'routing': {
-        title: 'Analyzing your request', substeps: [
-          { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing' }
+        title: 'Thinking', substeps: [
+          { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing', reason: null }
+        ]
+      },
+      'resume': {
+        title: 'Retrieving Context', substeps: [
+          { id: 'resume-retrieval', icon: '📄', text: 'Fetching resume data', reason: null }
+        ]
+      },
+      'generation': {
+        title: 'Generating AI output', substeps: [
+          { id: 'ai-generation', icon: '⚙️', text: 'Running AI service', reason: null }
         ]
       },
       'processing': {
-        title: 'Generating AI output', substeps: [
-          { id: 'ai-service', icon: '⚙️', text: 'Running AI service' }
+        title: 'Processing AI output', substeps: [
+          { id: 'ai-service', icon: '⚙️', text: 'Running AI service', reason: null }
         ]
       },
       'reflection': {
         title: 'Reflecting on output quality', substeps: [
-          { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy' },
-          { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities' }
+          { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy', reason: null },
+          { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities', reason: null }
         ]
       },
       'improvement': {
         title: 'Enhancing output', substeps: [
-          { id: 'generating-improved', icon: '✨', text: 'Generating improved version' }
+          { id: 'generating-improved', icon: '✨', text: 'Generating improved version', reason: null }
         ]
       }
     };
@@ -2644,23 +2703,59 @@ class TonePilotUIManager {
 
     if (existingStepIndex !== -1) {
       // Update existing step
+      const oldStatus = this.progressiveSteps[existingStepIndex].status;
       this.progressiveSteps[existingStepIndex].status = status;
       this.progressiveSteps[existingStepIndex].activeSubstep = activeSubstep;
-      console.log(`📋 Updated existing step: ${stepId} -> ${status}`);
+
+      console.log(`🔄 Step status transition: ${stepId} (${oldStatus} → ${status})`);
+
+      // Update reasoning if provided
+      if (reasoning && this.progressiveSteps[existingStepIndex].substeps) {
+        this.progressiveSteps[existingStepIndex].substeps.forEach(substep => {
+          if (substep.id === activeSubstep) {
+            const oldReason = substep.reason;
+            substep.reason = reasoning;
+            console.log(`💡 AI reasoning added to ${stepId}/${substep.id}:`, {
+              wasNull: oldReason === null,
+              reasoning: reasoning
+            });
+          }
+        });
+      } else if (!reasoning && status === 'completed') {
+        console.log(`⚠️ Step completed without AI reasoning: ${stepId}/${activeSubstep}`);
+      }
+
+      console.log(`📋 Updated existing step: ${stepId} -> ${status}${reasoning ? ` (with AI reasoning)` : ''}`);
     } else {
-      // Add new step (only if it becomes active)
-      if (status === 'active') {
-        const stepDef = stepDefinitions[stepId];
-        if (stepDef) {
-          this.progressiveSteps.push({
-            id: stepId,
-            title: stepDef.title,
-            substeps: stepDef.substeps,
-            status: status,
-            activeSubstep: activeSubstep
+      // Add new step (any status - we want to show completed steps too)
+      const stepDef = stepDefinitions[stepId];
+      if (stepDef) {
+        const substeps = JSON.parse(JSON.stringify(stepDef.substeps)); // Deep clone
+
+        // Inject reasoning if provided
+        if (reasoning && activeSubstep) {
+          substeps.forEach(substep => {
+            if (substep.id === activeSubstep) {
+              substep.reason = reasoning;
+              console.log(`💡 AI reasoning included in new step ${stepId}/${substep.id}: "${reasoning}"`);
+            }
           });
-          console.log(`📋 Added new step: ${stepId} -> ${status}`);
+        } else if (!reasoning && status === 'active') {
+          console.log(`✨ New step added as active (reasoning will be added on completion): ${stepId}/${activeSubstep}`);
+        } else if (!reasoning && status === 'completed') {
+          console.log(`⚠️ New step added as completed without AI reasoning: ${stepId}/${activeSubstep}`);
         }
+
+        this.progressiveSteps.push({
+          id: stepId,
+          title: stepDef.title,
+          substeps: substeps,
+          status: status,
+          activeSubstep: activeSubstep
+        });
+        console.log(`📋 Added new step: ${stepId} -> ${status}${reasoning ? ` (with AI reasoning)` : ' (reasoning pending)'}`);
+      } else {
+        console.warn(`⚠️ Step definition not found for: ${stepId}`);
       }
     }
   }
@@ -2672,24 +2767,24 @@ class TonePilotUIManager {
   getAllStepsWithStatus() {
     const stepDefinitions = [
       {
-        id: 'routing', title: 'Analyzing your request', substeps: [
-          { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing' }
+        id: 'routing', title: 'Thinking', substeps: [
+          { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing', reason: 'Understanding what you want to accomplish' }
         ]
       },
       {
         id: 'processing', title: 'Generating AI output', substeps: [
-          { id: 'ai-service', icon: '⚙️', text: 'Running AI service' }
+          { id: 'ai-service', icon: '⚙️', text: 'Running AI service', reason: 'Creating your content with AI' }
         ]
       },
       {
         id: 'reflection', title: 'Reflecting on output quality', substeps: [
-          { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy' },
-          { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities' }
+          { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy', reason: 'Checking if the output meets standards' },
+          { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities', reason: 'Finding ways to make it better' }
         ]
       },
       {
         id: 'improvement', title: 'Enhancing output', substeps: [
-          { id: 'generating-improved', icon: '✨', text: 'Generating improved version' }
+          { id: 'generating-improved', icon: '✨', text: 'Generating improved version', reason: 'Creating an enhanced version' }
         ]
       }
     ];
@@ -2709,24 +2804,49 @@ class TonePilotUIManager {
 
   /**
    * Generate HTML showing only revealed steps progressively
+   * @param {boolean} planMode - Whether plan mode is active
    * @returns {string} Progressive step indicator HTML
    */
-  generateProgressiveStepHTML() {
+  generateProgressiveStepHTML(planMode = null) {
     // Only show steps that have been revealed (in progressiveSteps array)
     if (!this.progressiveSteps || this.progressiveSteps.length === 0) {
-      return this.generateInitialStepIndicatorHTML();
+      return this.generateInitialStepIndicatorHTML(planMode);
     }
+
+    // Determine plan mode from parameter or fallback to container
+    const isPlanMode = planMode !== null ? planMode : (this.currentDetailContainer?.planMode || false);
+
+    console.log('🎨 generateProgressiveStepHTML - isPlanMode:', isPlanMode);
+    console.log('🎨 generateProgressiveStepHTML - steps:', JSON.stringify(this.progressiveSteps, null, 2));
+
+    // Check if all steps are complete
+    const allComplete = this.progressiveSteps.every(step => step.status === 'completed');
+    console.log('🎨 All progressive steps complete:', allComplete);
 
     let stepsHTML = '';
 
     this.progressiveSteps.forEach((step, index) => {
+      console.log(`🎨 Processing step ${step.id}:`, {
+        status: step.status,
+        activeSubstep: step.activeSubstep,
+        substepsCount: step.substeps.length,
+        substeps: step.substeps.map(s => ({ id: s.id, text: s.text, hasReason: !!s.reason, reason: s.reason }))
+      });
+
       const substepsHTML = step.substeps.map(substep => {
         const isActive = step.activeSubstep === substep.id;
-        // Only show reason in Plan mode
-        const isPlanMode = this.currentDetailContainer?.planMode || false;
-        const reasonHTML = (isPlanMode && substep.reason) ? `<div class="substep-reason">${substep.reason}</div>` : '';
+        // Only show reason in Plan mode if it exists and has actual content
+        const hasReason = substep.reason && substep.reason.trim().length > 0;
+
+        const reasonHTML = (isPlanMode && hasReason) ? `<div class="substep-reason">${substep.reason}</div>` : '';
+        console.log(`🎨 Substep ${substep.id}:`, {
+          isPlanMode,
+          reasonValue: substep.reason,
+          reasonType: typeof substep.reason,
+          hasReason,
+          willShowReason: !!(isPlanMode && hasReason)
+        });
         return `<div class="substep" ${isActive ? 'data-active="true"' : ''}>
-          <span class="substep-icon">${substep.icon}</span>
           <div class="substep-content">
             <span class="substep-text">${substep.text}</span>
             ${reasonHTML}
@@ -2737,6 +2857,17 @@ class TonePilotUIManager {
       stepsHTML += `<li class="step-item" data-step="${step.id}" data-status="${step.status}"><div class="step-circle"></div><div class="step-content"><div class="step-title">${step.title}</div><div class="step-substeps">${substepsHTML}</div></div></li>`;
     });
 
+    // Add "Complete" step at the end if all steps are complete
+    if (allComplete) {
+      const completeSubstepHTML = `<div class="substep">
+        <div class="substep-content">
+          <span class="substep-text">Complete</span>
+        </div>
+      </div>`;
+      stepsHTML += `<li class="step-item" data-step="complete" data-status="completed"><div class="step-circle"></div><div class="step-content"><div class="step-title">Complete</div><div class="step-substeps">${completeSubstepHTML}</div></div></li>`;
+      console.log('✅ Added Complete step to progressive steps');
+    }
+
     return `<div class="step-indicator"><ul class="step-list">${stepsHTML}</ul></div>`;
   }
 
@@ -2745,31 +2876,32 @@ class TonePilotUIManager {
    * @param {string} stepId - Step identifier
    * @param {string} status - Status
    * @param {string} activeSubstep - Optional active substep
+   * @param {boolean} planMode - Whether plan mode is active
    * @returns {string} Updated HTML
    */
-  updateStepIndicatorHTML(stepId, status, activeSubstep = null) {
+  updateStepIndicatorHTML(stepId, status, activeSubstep = null, planMode = null) {
     // This is a simplified version - in a real implementation, you'd parse and update the existing HTML
     // For now, I'll generate fresh HTML with the updated status
     const steps = [
       {
-        id: 'routing', title: 'Analyzing your request', substeps: [
-          { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing' }
+        id: 'routing', title: 'Thinking', substeps: [
+          { id: 'semantic-routing', icon: '🎯', text: 'Determining intent and routing', reason: 'Understanding what you want to accomplish' }
         ]
       },
       {
         id: 'processing', title: 'Generating AI output', substeps: [
-          { id: 'ai-service', icon: '⚙️', text: 'Running AI service' }
+          { id: 'ai-service', icon: '⚙️', text: 'Running AI service', reason: 'Creating your content with AI' }
         ]
       },
       {
         id: 'reflection', title: 'Reflecting on output quality', substeps: [
-          { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy' },
-          { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities' }
+          { id: 'quality-analysis', icon: '🔍', text: 'Analyzing quality and accuracy', reason: 'Checking if the output meets standards' },
+          { id: 'improvement-check', icon: '📊', text: 'Evaluating improvement opportunities', reason: 'Finding ways to make it better' }
         ]
       },
       {
         id: 'improvement', title: 'Enhancing output', substeps: [
-          { id: 'generating-improved', icon: '✨', text: 'Generating improved version' }
+          { id: 'generating-improved', icon: '✨', text: 'Generating improved version', reason: 'Creating an enhanced version' }
         ]
       }
     ];
@@ -2783,12 +2915,14 @@ class TonePilotUIManager {
       }
     }
 
+    // Determine plan mode from parameter or fallback to container
+    const isPlanMode = planMode !== null ? planMode : (this.currentDetailContainer?.planMode || false);
+
     // Generate HTML with updated statuses
     const stepsHTML = steps.map(step => {
       const substepsHTML = step.substeps.map(substep => {
         const isActive = step.status === 'active' && step.activeSubstep === substep.id;
         // Only show reason in Plan mode
-        const isPlanMode = this.currentDetailContainer?.planMode || false;
         const reasonHTML = (isPlanMode && substep.reason) ? `<div class="substep-reason">${substep.reason}</div>` : '';
         return `<div class="substep" ${isActive ? 'data-active="true"' : ''}>
           <span class="substep-icon">${substep.icon}</span>

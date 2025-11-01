@@ -166,17 +166,49 @@ class TonePilotAIServicesManager {
       }
 
       // Step 1: Analyzing request
-      this.stateManager.addProcessingStep('Analyzing your request');
+      this.stateManager.addProcessingStep('Analyzing request');
 
-      // Route the input to determine intent (with selection context)
+      // Get Plan mode status
+      const planMode = this.stateManager.getPlanMode();
+
+      // Route the input to determine intent (with selection context and Plan mode)
       const routing = await this.semanticRouter.route(inputText, {
         hasSelectedText: Boolean(selectionData?.text),
-        selectedText: selectionData?.text || ''
+        selectedText: selectionData?.text || '',
+        planMode: planMode
       });
       console.log('🎯 Routing result:', routing);
+      console.log('🎯 Routing reasoning:', routing.reasoning);
+      console.log('🎯 Plan mode active:', planMode);
 
       // Mark step as complete
       this.stateManager.updateLastStepStatus('complete');
+
+      // Update routing step to completed with reasoning in Plan mode
+      if (planMode) {
+        console.log('🔍 Routing result details:', {
+          hasReasoning: !!routing.reasoning,
+          reasoning: routing.reasoning,
+          reasoningType: typeof routing.reasoning,
+          reasoningLength: routing.reasoning?.length,
+          fullRoutingObject: routing
+        });
+
+        if (routing.reasoning && routing.reasoning.trim()) {
+          console.log('✅ Completing routing step WITH reasoning:', routing.reasoning);
+          console.log('📞 Calling updatePlanModeStepIndicator with:', {
+            stepId: 'routing',
+            status: 'completed',
+            activeSubstep: 'semantic-routing',
+            reasoning: routing.reasoning
+          });
+          this.uiManager.updatePlanModeStepIndicator('routing', 'completed', 'semantic-routing', routing.reasoning);
+        } else {
+          console.warn('⚠️ No reasoning from semantic router - completing step without reason');
+          console.log('🔍 Full routing object:', JSON.stringify(routing, null, 2));
+          this.uiManager.updatePlanModeStepIndicator('routing', 'completed', 'semantic-routing', null);
+        }
+      }
 
       // Process based on intent
       let result;
@@ -191,6 +223,33 @@ class TonePilotAIServicesManager {
       };
       const stepLabel = intentLabels[routing.intent] || 'Processing text';
       this.stateManager.addProcessingStep(stepLabel);
+
+      // Step 2.5: Check if resume retrieval is needed
+      const needsResume = this.checkIfResumeNeeded(inputText);
+      let retrievedResume = null;
+      if (planMode && needsResume) {
+        console.log('📄 Resume mentioned in query, adding retrieval step');
+        this.uiManager.updatePlanModeStepIndicator('resume', 'active', 'resume-retrieval', null);
+
+        // Retrieve resume using DocumentService
+        const resumeData = await window.DocumentService.getResumeData();
+        if (resumeData && resumeData.content) {
+          console.log('✅ Resume retrieved:', resumeData.filename);
+          retrievedResume = resumeData;
+          this.uiManager.updatePlanModeStepIndicator('resume', 'completed', 'resume-retrieval',
+            `Retrieved resume: ${resumeData.filename}`);
+        } else {
+          console.warn('⚠️ Resume mentioned but not found in storage');
+          this.uiManager.updatePlanModeStepIndicator('resume', 'completed', 'resume-retrieval',
+            'No resume found in storage');
+        }
+      }
+
+      // Add generation step as active in Plan mode (before processing starts)
+      if (planMode) {
+        console.log('📝 Starting AI generation step (no reasoning yet)');
+        this.uiManager.updatePlanModeStepIndicator('generation', 'active', 'ai-generation', null);
+      }
 
       switch (routing.intent) {
         case 'proofread':
@@ -224,6 +283,26 @@ class TonePilotAIServicesManager {
       // Mark processing step as complete
       this.stateManager.updateLastStepStatus('complete');
 
+      // Update generation step to completed with reasoning in Plan mode
+      if (planMode) {
+        console.log('🔍 Generation result details:', {
+          hasReasoning: !!result?.reasoning,
+          reasoning: result?.reasoning,
+          reasoningType: typeof result?.reasoning,
+          reasoningLength: result?.reasoning?.length,
+          intent: routing.intent,
+          service: result?.service
+        });
+
+        if (result?.reasoning && result.reasoning.trim()) {
+          console.log('✅ Completing generation step WITH reasoning:', result.reasoning);
+          this.uiManager.updatePlanModeStepIndicator('generation', 'completed', 'ai-generation', result.reasoning);
+        } else {
+          console.warn('⚠️ No reasoning from AI service - completing step without reason');
+          this.uiManager.updatePlanModeStepIndicator('generation', 'completed', 'ai-generation', null);
+        }
+      }
+
       // Apply translation if translate mode is active (but skip if intent was already translate)
       console.log('🔍 Checking translation condition:', {
         translateMode: translateMode,
@@ -249,6 +328,39 @@ class TonePilotAIServicesManager {
         });
       }
 
+      // Prepare sources array
+      const sources = [];
+
+      // Add selected text to sources (like Sourav's profile)
+      if (selectionData && selectionData.text) {
+        const truncatedText = selectionData.text.length > 100
+          ? selectionData.text.substring(0, 100) + '...'
+          : selectionData.text;
+
+        sources.push({
+          icon: '📋',
+          title: selectionData.context?.pageTitle || 'Selected Text',
+          snippet: truncatedText,
+          url: selectionData.url || null,
+          isLocal: false
+        });
+        console.log('📋 Added selected text to sources');
+      }
+
+      // Add resume to sources if it was retrieved
+      if (retrievedResume) {
+        const sizeFormatted = this.uiManager.formatFileSize(retrievedResume.size);
+        const uploadDate = new Date(retrievedResume.uploadedAt).toLocaleDateString();
+        sources.push({
+          icon: '📄',
+          title: retrievedResume.filename,
+          snippet: `Resume • ${sizeFormatted} • Uploaded ${uploadDate}`,
+          url: null,
+          isLocal: true
+        });
+        console.log('📄 Added resume to sources:', retrievedResume.filename);
+      }
+
       // Prepare final result
       const finalResult = {
         ...result,
@@ -256,12 +368,15 @@ class TonePilotAIServicesManager {
         outputType: routing.outputType,
         tones: routing.tones,
         via: routing.via,
-        score: routing.score
+        score: routing.score,
+        sources: sources.length > 0 ? sources : null
       };
 
       console.log('🎯 Final result object:', {
         hasAlt1: !!finalResult.alt1,
         hasAlt2: !!finalResult.alt2,
+        hasSources: !!finalResult.sources,
+        sourcesCount: sources.length,
         keys: Object.keys(finalResult)
       });
 
@@ -358,6 +473,65 @@ class TonePilotAIServicesManager {
   }
 
   /**
+   * Generate reasoning for a processing step in Plan mode
+   * @param {Object} params - Parameters for reasoning generation
+   * @returns {Promise<string>} Generated reasoning
+   */
+  async generateProcessingReasoning(params) {
+    const { intent, userQuery, platform, routing } = params;
+
+    try {
+      const promptService = new window.PromptService();
+      const tones = routing?.tones?.join(', ') || 'neutral';
+      const outputType = routing?.outputType || 'text';
+
+      const reasoningPrompt = `Generate a single brief sentence (8-12 words) explaining how you'll help the user.
+
+User request: "${userQuery}"
+Task: ${intent}
+Tone needed: ${tones}
+Output format: ${outputType}
+
+CRITICAL: Respond with ONLY ONE sentence. No quotes, no extra text. Start with "I will" or "I'll".
+
+Good examples:
+- I will draft a professional email with formal tone
+- I'll revise the content for clarity and impact
+- I will rewrite this to sound more polite
+
+Your response (one sentence only):`;
+
+      const reasoning = await promptService.send(reasoningPrompt);
+      const cleaned = reasoning.trim().replace(/^["']|["']$/g, '').split('\n')[0]; // Remove quotes and take first line only
+      console.log('🤖 Generated processing reasoning:', cleaned);
+      return cleaned;
+    } catch (error) {
+      console.error('❌ Failed to generate reasoning:', error);
+      // Fallback to generic reasoning
+      const fallbacks = {
+        'write': 'I will create new content based on your request',
+        'rewrite': 'I will revise the text to improve quality',
+        'translate': 'I will translate while preserving the meaning',
+        'summarize': 'I will extract the key points',
+        'proofread': 'I will check and fix any errors'
+      };
+      return fallbacks[intent] || 'I will process your request';
+    }
+  }
+
+  /**
+   * Check if resume is mentioned in the user's query
+   * @param {string} query - User's input query
+   * @returns {boolean} True if resume is mentioned
+   */
+  checkIfResumeNeeded(query) {
+    const resumeKeywords = /\b(resume|cv|curriculum vitae|my background|my experience|my skills|my qualifications|refer to my resume|check my resume|use my resume|based on my resume)\b/i;
+    const isNeeded = resumeKeywords.test(query);
+    console.log(`📄 Resume needed: ${isNeeded} (query: "${query.substring(0, 50)}...")`);
+    return isNeeded;
+  }
+
+  /**
    * Handle rewrite request
    * @param {string} text - Text to rewrite
    * @param {string} instructions - Rewrite instructions
@@ -385,6 +559,7 @@ class TonePilotAIServicesManager {
       // Fallback to language model via PromptService with platform context
       try {
         const promptService = new window.PromptService();
+        const planMode = this.stateManager.getPlanMode();
         let prompt = instructions;
 
         // Add platform-specific context
@@ -406,14 +581,32 @@ class TonePilotAIServicesManager {
           prompt = `${prompt}${documentContext}`;
         }
 
+        // Add reasoning request in Plan mode
+        if (planMode) {
+          prompt = `${prompt}\n\nIMPORTANT: After the rewritten text, add a brief line starting with "REASONING:" explaining your rewriting approach (1 sentence).`;
+        }
+
         const result = await promptService.send(prompt);
+
+        // Extract reasoning if present
+        let finalResult = result;
+        let reasoning = null;
+        if (planMode && result.includes('REASONING:')) {
+          const reasoningMatch = result.match(/REASONING:\s*(.+)/i);
+          if (reasoningMatch) {
+            reasoning = reasoningMatch[1].trim();
+            finalResult = result.replace(/\n*REASONING:\s*.+/i, '').trim();
+          }
+        }
+
         return {
-          primary: result,
+          primary: finalResult,
           original: text,
           type: 'rewrite',
           service: 'languageModel',
           tone: tone,
-          platform: platform
+          platform: platform,
+          reasoning: reasoning
         };
       } catch (error) {
         throw new Error(`Language model fallback failed: ${error.message}`);
@@ -436,6 +629,19 @@ class TonePilotAIServicesManager {
         length: 'as-is'
       });
 
+      // Generate reasoning in Plan mode
+      const planMode = this.stateManager.getPlanMode();
+      let reasoning = null;
+      if (planMode) {
+        reasoning = await this.generateProcessingReasoning({
+          intent: 'rewrite',
+          userQuery: instructions,
+          platform: platform,
+          routing: routing
+        });
+        console.log('💡 Generated reasoning for rewrite:', reasoning);
+      }
+
       return {
         primary: result.rewritten,
         original: result.original,
@@ -443,7 +649,8 @@ class TonePilotAIServicesManager {
         service: 'rewriter',
         tone: tone,
         platform: platform,
-        context: context
+        context: context,
+        reasoning: reasoning
       };
     } catch (error) {
       console.error('❌ Rewriter service failed, using language model fallback:', error);
@@ -502,6 +709,7 @@ class TonePilotAIServicesManager {
       // Fallback to language model via PromptService
       try {
         const promptService = new window.PromptService();
+        const planMode = this.stateManager.getPlanMode();
         let prompt = query;
 
         // Add conversation context if available
@@ -532,14 +740,43 @@ class TonePilotAIServicesManager {
           prompt = `${prompt}${documentContext}`;
         }
 
+        // Add reasoning request in Plan mode
+        if (planMode) {
+          prompt = `${prompt}\n\nIMPORTANT: After generating the content, add a brief line at the end starting with "REASONING:" explaining your approach (1 sentence).`;
+        }
+
         const result = await promptService.send(prompt);
+
+        console.log('✅ PromptService result (initial fallback):', {
+          hasResult: !!result,
+          resultLength: result?.length,
+          resultPreview: result?.substring(0, 100)
+        });
+
+        if (!result || !result.trim()) {
+          console.error('❌ PromptService returned empty result!');
+          throw new Error('PromptService returned empty result');
+        }
+
+        // Extract reasoning if present
+        let finalResult = result;
+        let reasoning = null;
+        if (planMode && result.includes('REASONING:')) {
+          const reasoningMatch = result.match(/REASONING:\s*(.+)/i);
+          if (reasoningMatch) {
+            reasoning = reasoningMatch[1].trim();
+            finalResult = result.replace(/\n*REASONING:\s*.+/i, '').trim();
+          }
+        }
+
         return {
-          primary: result,
+          primary: finalResult,
           original: query,
           context: context || '',
           type: 'write',
           service: 'languageModel',
-          tone: tone
+          tone: tone,
+          reasoning: reasoning
         };
       } catch (error) {
         throw new Error(`Language model fallback failed: ${error.message}`);
@@ -565,10 +802,55 @@ class TonePilotAIServicesManager {
         enhancedContext = enhancedContext ? `${enhancedContext}${documentContext}` : documentContext.trim();
       }
 
+      // Enhance query with output type guidance since Writer API only supports plain-text/markdown
+      let enhancedQuery = query;
+      if (outputType && outputType !== 'plain-text') {
+        const formatGuidance = {
+          'email': 'Write a professional email:',
+          'letter': 'Write a formal letter:',
+          'post': 'Write a social media post:',
+          'document': 'Write a structured document:',
+          'list': 'Create a bulleted list:',
+          'script': 'Write a dialogue/script:',
+          'summary': 'Write a summary:',
+          'response': 'Write a response:',
+          'announcement': 'Write an announcement:',
+          'tutorial': 'Write a step-by-step tutorial:'
+        };
+        const guidance = formatGuidance[outputType];
+        if (guidance && !query.toLowerCase().includes(outputType)) {
+          enhancedQuery = `${guidance} ${query}`;
+        }
+      }
+
       // Use Writer API
-      const result = await this.writerService.write(query, enhancedContext, {
+      const result = await this.writerService.write(enhancedQuery, enhancedContext, {
         context: enhancedContext || undefined
       });
+
+      console.log('✅ Writer service result:', {
+        hasOutput: !!result.output,
+        outputLength: result.output?.length,
+        outputPreview: result.output?.substring(0, 100)
+      });
+
+      if (!result.output || !result.output.trim()) {
+        console.error('❌ Writer service returned empty output!', result);
+        throw new Error('Writer service returned empty output');
+      }
+
+      // Generate reasoning in Plan mode
+      const planMode = this.stateManager.getPlanMode();
+      let reasoning = null;
+      if (planMode) {
+        reasoning = await this.generateProcessingReasoning({
+          intent: 'write',
+          userQuery: query,
+          platform: platform,
+          routing: routing
+        });
+        console.log('💡 Generated reasoning for write:', reasoning);
+      }
 
       return {
         primary: result.output,
@@ -577,7 +859,8 @@ class TonePilotAIServicesManager {
         type: 'write',
         service: 'writer',
         tone: tone,
-        metadata: result.metadata
+        metadata: result.metadata,
+        reasoning: reasoning
       };
     } catch (error) {
       console.error('❌ Writer service failed, using language model fallback:', error);
@@ -603,6 +886,18 @@ class TonePilotAIServicesManager {
         }
 
         const result = await promptService.send(prompt);
+
+        console.log('✅ PromptService result (error fallback):', {
+          hasResult: !!result,
+          resultLength: result?.length,
+          resultPreview: result?.substring(0, 100)
+        });
+
+        if (!result || !result.trim()) {
+          console.error('❌ PromptService error fallback returned empty result!');
+          throw new Error('PromptService error fallback returned empty result');
+        }
+
         return {
           primary: result,
           original: query,
@@ -1111,23 +1406,14 @@ class TonePilotAIServicesManager {
    * @returns {string} Format for writer service
    */
   deriveFormatFromOutputType(outputType) {
+    // Chrome Writer API only supports 'plain-text' and 'markdown'
+    // We use plain-text and guide the AI through the context/prompt instead
     switch (outputType) {
-      case 'email':
-        return 'email';
-      case 'letter':
-        return 'formal-letter';
-      case 'post':
-        return 'social-post';
-      case 'document':
-        return 'document';
       case 'list':
-        return 'bulleted-list';
-      case 'script':
-        return 'dialogue';
       case 'tutorial':
-        return 'step-by-step';
+        return 'markdown'; // Use markdown for structured content
       default:
-        return 'plain-text';
+        return 'plain-text'; // Default to plain-text for all other types
     }
   }
 

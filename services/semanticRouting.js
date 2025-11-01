@@ -69,16 +69,22 @@ class SemanticRouter {
   async route(input, options = {}) {
     console.log('🎯 SemanticRouter.route() called with input:', input);
     console.log('🎯 Routing options:', options);
+    console.log('🎯 SemanticRouter state:', {
+      hasClassifier: !!this.classifier,
+      useAIRouting: this.useAIRouting,
+      classifierType: this.classifier ? typeof this.classifier : 'undefined'
+    });
     const query = (input || "").trim().toLowerCase();
     console.log('🎯 Normalized query:', query);
 
     const hasSelectedText = options.hasSelectedText || false;
     const selectedText = options.selectedText || '';
+    const planMode = options.planMode || false;
 
     // Try AI-based routing first if enabled
     if (this.useAIRouting) {
       try {
-        const aiResult = await this.routeWithAI(input, hasSelectedText, selectedText);
+        const aiResult = await this.routeWithAI(input, hasSelectedText, selectedText, planMode);
         if (aiResult) {
           console.log('🤖 Using AI-based routing result:', aiResult);
           return aiResult;
@@ -89,7 +95,7 @@ class SemanticRouter {
     }
 
     // Fallback to pattern-based routing
-    return this.routeWithPatterns(query, hasSelectedText);
+    return await this.routeWithPatterns(query, hasSelectedText, planMode);
   }
 
   /**
@@ -97,16 +103,41 @@ class SemanticRouter {
    * @param {string} input - User input
    * @param {boolean} hasSelectedText - Whether user has text selected
    * @param {string} selectedText - The selected text (optional)
+   * @param {boolean} planMode - Whether Plan mode is active
    * @returns {Promise<Object|null>} Routing result or null if failed
    */
-  async routeWithAI(input, hasSelectedText = false, selectedText = '') {
+  async routeWithAI(input, hasSelectedText = false, selectedText = '', planMode = false) {
+    console.log('🤖 routeWithAI called:', { hasClassifier: !!this.classifier, planMode });
+
     if (!this.classifier) {
+      console.warn('⚠️ No classifier available for AI routing');
       return null;
     }
 
     const contextInfo = hasSelectedText
       ? `\n\nContext: User has selected text${selectedText ? `: "${selectedText.substring(0, 100)}..."` : ''}`
       : '\n\nContext: User has NO selected text';
+
+    const reasoningRequest = planMode
+      ? '\n\nCRITICAL: You MUST include a "reasoning" field. Write a single brief sentence (8-12 words) explaining what the user wants to accomplish. Start with "User wants to" or "User is asking to".'
+      : '';
+
+    const responseFormat = planMode
+      ? `{
+  "intent": "write",
+  "outputType": "email",
+  "tones": ["professional"],
+  "confidence": 0.95,
+  "reasoning": "User wants to draft a professional response email"
+}`
+      : `{
+  "intent": "the main intent",
+  "outputType": "detected output type or null",
+  "tones": ["tone1", "tone2"],
+  "confidence": 0.0-1.0
+}`;
+
+    console.log('🤖 AI routing with planMode:', planMode, 'reasoningRequest:', reasoningRequest ? 'YES' : 'NO');
 
     const prompt = `Analyze the following user request and classify it into one of these intents:
 - proofread: Check grammar, spelling, and punctuation of SELECTED text
@@ -136,15 +167,10 @@ Also identify:
 - Output type (email, letter, post, document, list, script, summary, response, announcement, tutorial)
 - Tone/style (formal, casual, persuasive, urgent, diplomatic, confident, empathetic)
 
-User request: "${input}"${contextInfo}
+User request: "${input}"${contextInfo}${reasoningRequest}
 
 Respond in this exact JSON format:
-{
-  "intent": "the main intent",
-  "outputType": "detected output type or null",
-  "tones": ["tone1", "tone2"],
-  "confidence": 0.0-1.0
-}`;
+${responseFormat}`;
 
     try {
       const response = await this.classifier.send(prompt);
@@ -158,6 +184,11 @@ Respond in this exact JSON format:
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
+      console.log('🤖 Parsed AI response:', {
+        hasReasoning: !!parsed.reasoning,
+        reasoning: parsed.reasoning,
+        intent: parsed.intent
+      });
 
       // Validate response
       if (!parsed.intent || !['proofread', 'summarize', 'write', 'rewrite', 'translate'].includes(parsed.intent)) {
@@ -165,13 +196,21 @@ Respond in this exact JSON format:
         return null;
       }
 
-      return {
+      const result = {
         intent: parsed.intent,
         outputType: parsed.outputType || null,
         tones: Array.isArray(parsed.tones) ? parsed.tones : [],
         score: parsed.confidence || 0.85,
-        via: "ai-classifier"
+        via: "ai-classifier",
+        reasoning: parsed.reasoning || null
       };
+
+      console.log('🤖 Final AI routing result:', {
+        hasReasoning: !!result.reasoning,
+        reasoning: result.reasoning
+      });
+
+      return result;
     } catch (error) {
       console.error('❌ AI routing error:', error);
       return null;
@@ -199,9 +238,10 @@ Respond in this exact JSON format:
    * Route using pattern-based matching (fast fallback)
    * @param {string} query - Normalized query string
    * @param {boolean} hasSelectedText - Whether user has text selected
+   * @param {boolean} planMode - Whether Plan mode is active (for reasoning generation)
    * @returns {Object} Routing result
    */
-  routeWithPatterns(query, hasSelectedText = false) {
+  async routeWithPatterns(query, hasSelectedText = false, planMode = false) {
     let matchedIntent = null;
     let matchedOutputType = null;
     let matchedTones = [];
@@ -256,13 +296,43 @@ Respond in this exact JSON format:
       }
     }
 
+    // Generate reasoning in Plan mode using AI
+    let reasoning = null;
+    if (planMode && this.classifier) {
+      try {
+        const intentDescriptions = {
+          'proofread': 'check grammar and spelling',
+          'summarize': 'create a summary',
+          'rewrite': 'modify and improve the text',
+          'write': 'create new content',
+          'translate': 'translate to another language'
+        };
+        const action = intentDescriptions[matchedIntent] || 'process the text';
+        const reasoningPrompt = `Generate a single brief sentence (8-12 words) explaining what the user wants to do.
+
+User wants to: ${action}
+Output format: ${matchedOutputType || 'text'}
+Tone: ${matchedTones.join(', ') || 'neutral'}
+
+CRITICAL: Respond with ONLY ONE sentence. No quotes, no extra text. Start with "User wants to" or "User is asking to".`;
+
+        const response = await this.classifier.send(reasoningPrompt);
+        reasoning = response.trim().replace(/^["']|["']$/g, ''); // Remove quotes
+        console.log('💡 Generated reasoning for pattern-based routing:', reasoning);
+      } catch (error) {
+        console.warn('⚠️ Failed to generate reasoning for pattern routing:', error);
+        reasoning = null;
+      }
+    }
+
     // matchedIntent is already set above (either from pattern match or smart fallback)
     return {
       intent: matchedIntent,
       outputType: matchedOutputType,
       tones: matchedTones,
       score: matchedIntent ? 0.9 : 0.7,
-      via: matchedIntent ? "patterns" : "context-fallback"
+      via: matchedIntent ? "patterns" : "context-fallback",
+      reasoning: reasoning  // Generated by AI in Plan mode, null otherwise
     };
   }
 
@@ -334,25 +404,15 @@ Respond in this exact JSON format:
 
   /**
    * Derive format instructions from output type
+   * Note: Chrome Writer API only supports 'plain-text' and 'markdown'
    */
   deriveFormatFromOutputType(outputType) {
     switch (outputType) {
-      case 'email':
-        return 'email';
-      case 'letter':
-        return 'formal-letter';
-      case 'post':
-        return 'social-post';
-      case 'document':
-        return 'document';
       case 'list':
-        return 'bulleted-list';
-      case 'script':
-        return 'dialogue';
       case 'tutorial':
-        return 'step-by-step';
+        return 'markdown'; // Use markdown for structured content
       default:
-        return 'plain-text';
+        return 'plain-text'; // Default to plain-text for all other types
     }
   }
 }
