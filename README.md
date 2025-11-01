@@ -1,4 +1,12 @@
 # ComposeEdge 🚀
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=TP8pJYEworg" target="_blank">
+    <img src="https://img.youtube.com/vi/TP8pJYEworg/maxresdefault.jpg" 
+         alt="ComposeEdge Demo – Chrome Dev Fest 2025" width="80%" style="border-radius: 10px;"/>
+  </a>
+  <br/>
+  <em>🎥 Click the image above to watch the full ComposeEdge demo on YouTube</em>
+</p>
 
 **Intelligent AI-Powered Writing Assistant for Chrome**
 
