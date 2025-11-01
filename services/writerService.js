@@ -129,7 +129,30 @@ class WriterService {
                 writeOptions.context = options.context || context;
             }
 
+            console.log('🔧 Calling Chrome Writer API with:', {
+                query: query.substring(0, 100),
+                hasContext: !!(options.context || context),
+                config: this.currentConfig
+            });
+
             const output = await this.writer.write(query, writeOptions);
+
+            console.log('🔧 Chrome Writer API returned:', {
+                hasOutput: !!output,
+                outputType: typeof output,
+                outputLength: output?.length,
+                isEmpty: !output || !output.trim()
+            });
+
+            if (!output || !output.trim()) {
+                console.error('❌ Chrome Writer API returned empty output!', {
+                    output,
+                    query,
+                    options: writeOptions,
+                    config: this.currentConfig
+                });
+                // Don't throw here, let it return empty and be caught by upstream error handling
+            }
 
             return {
                 original: query,
@@ -146,7 +169,7 @@ class WriterService {
                 }
             };
         } catch (error) {
-            console.error('Writer failed:', error);
+            console.error('❌ Writer failed with error:', error);
             throw new Error(`Writer failed: ${error.message}`);
         }
     }

@@ -941,11 +941,10 @@
 
 /* === STEP INDICATOR === */
 .step-indicator {
-  margin: 16px 0;
-  padding: 20px 16px;
-  background: var(--secondary-bg);
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   font-size: 14px;
 }
 
@@ -953,13 +952,13 @@
   padding-left: 0;
   position: relative;
   list-style: none;
+  background: transparent;
   margin: 0;
 }
 
-
 .step-item {
   position: relative;
-  margin-bottom: 0;
+  margin-bottom: 15px;
   transition: all 0.2s ease;
   list-style: none;
   display: flex;
@@ -985,7 +984,7 @@
   position: absolute;
   left: 3px; /* center of 5px circle */
   top: -17px; /* start from top of step-item (8px padding + 9px margin) */
-  height: 17px; /* connect to the top of the circle */
+  height: 27px; /* connect to the top of the circle */
   width: 1px;
   background: var(--border-primary);
   z-index: 0;
@@ -1002,7 +1001,7 @@
   flex-shrink: 0;
   z-index: 1;
   position: relative;
-  margin-top: 9px;
+  margin-top: 5px;
 }
 
 /* Step circle colors based on status */
@@ -1023,7 +1022,7 @@
 .step-title {
   font-weight: 600;
   margin-bottom: 0;
-  font-size: 15px;
+  font-size: 13px;
   transition: color 0.2s ease;
 }
 
@@ -1050,28 +1049,39 @@
 .step-substeps {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-left: 8px;
+  gap: 10px;
 }
 
 .substep {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
   opacity: 0.7;
   transition: opacity 0.2s ease;
 }
 
-.substep-icon {
-  font-size: 12px;
-  width: 16px;
-  text-align: center;
-  flex-shrink: 0;
+.substep-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
 }
 
 .substep-text {
-  font-size: 12px;
+  margin-bottom: 0;
+  font-size: 13px;
   color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 0;
+}
+
+.substep-reason {
+  font-size: 13px;
+  color: #6B7280;
+  line-height: 1.4;
+  font-style: normal;
+  margin-top: 10px;
+  padding-left: 0;
 }
 
 /* Active substep highlighting */
@@ -1080,11 +1090,20 @@
 }
 
 .step-item[data-status="active"] .substep[data-active="true"] .substep-text {
-  color: var(--text-primary);
+  color: var(--text-secondary);
+}
+
+.step-item[data-status="active"] .substep[data-active="true"] .substep-reason {
+  opacity: 0.8;
+  color: #8B92A0;
 }
 
 /* Completed substeps */
 .step-item[data-status="completed"] .substep {
+  opacity: 0.5;
+}
+
+.step-item[data-status="completed"] .substep-reason {
   opacity: 0.5;
 }
 

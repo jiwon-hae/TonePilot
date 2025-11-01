@@ -77,6 +77,12 @@ class TonePilotPanel {
       // Final UI setup
       await this.initializeUIComponents();
 
+      // Request current tab info to update favicon and website info
+      await this.requestCurrentTabInfo();
+
+      // Listen for tab changes to update favicon
+      this.setupTabChangeListener();
+
       this.uiManager.updateStatus('ready', 'Ready');
       console.log('✅ TonePilot Panel initialized successfully');
 
@@ -120,6 +126,65 @@ class TonePilotPanel {
     } catch (error) {
       console.warn('Memory service initialization failed:', error);
       this.memoryService = null;
+    }
+  }
+
+  /**
+   * Request current tab info to display favicon and website info
+   */
+  async requestCurrentTabInfo() {
+    try {
+      console.log('🌐 Requesting current tab info...');
+
+      // Get active tab
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+      if (!tab || !tab.id) {
+        console.warn('⚠️ No active tab found');
+        return;
+      }
+
+      // Send message to content script to get tab info
+      chrome.tabs.sendMessage(tab.id, { action: 'getTabInfo' }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('⚠️ Could not get tab info:', chrome.runtime.lastError.message);
+          return;
+        }
+
+        if (response && response.success) {
+          console.log('✅ Received tab info:', response.data);
+          // Update website info UI
+          this.messageHandler.handleWebsiteInfo(response.data);
+        }
+      });
+    } catch (error) {
+      console.warn('⚠️ Failed to request tab info:', error);
+    }
+  }
+
+  /**
+   * Setup listener for tab changes to update favicon
+   */
+  setupTabChangeListener() {
+    try {
+      // Listen for tab activation (user switches tabs)
+      chrome.tabs.onActivated.addListener((activeInfo) => {
+        console.log('🔄 Tab activated:', activeInfo.tabId);
+        this.requestCurrentTabInfo();
+      });
+
+      // Listen for tab updates (page navigation within same tab)
+      chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+        // Only update if this is the active tab and URL changed
+        if (changeInfo.url && tab.active) {
+          console.log('🔄 Tab URL updated:', changeInfo.url);
+          this.requestCurrentTabInfo();
+        }
+      });
+
+      console.log('✅ Tab change listeners setup');
+    } catch (error) {
+      console.warn('⚠️ Failed to setup tab change listeners:', error);
     }
   }
 

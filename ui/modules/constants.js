@@ -31,11 +31,11 @@ const TONEPILOT_CONSTANTS = {
     IDS: [
       'status', 'inputText', 'loading', 'error',
       'resultSection', 'resultContent', 'queryDisplay', 'replaceBtn', 'copyBtn', 'websiteInfo',
-      'websiteName', 'websiteUrl', 'selectedTextDisplay', 'selectedTextContent',
+      'websiteName', 'websiteUrl', 'websiteIcon', 'selectedTextDisplay', 'selectedTextContent',
       'textInputWrapper', 'mediaGrid',
       'mediaCount', 'selectMediaBtn', 'selectedMediaDisplay', 'selectedMediaGrid',
       'clearBtn', 'translateBtn', 'planBtn', 'settingsBtn', 'settingsPopup', 'closeSettingsBtn', 'saveSettingsBtn',
-      'maxCharactersInput', 'formalityTogglePopup', 'targetLanguageSelect', 'cropBtn', 'submitBtn',
+      'maxCharactersInput', 'formalityTogglePopup', 'targetLanguageSelect', 'submitBtn',
       'mediaBtn', 'mediaPopup', 'closeMediaBtn',
       'documentBtn', 'documentPopup', 'closeDocumentBtn', 'saveDocumentBtn',
       'resumeUpload', 'resumePreview', 'coldEmailTemplate', 'removeResumeBtn',

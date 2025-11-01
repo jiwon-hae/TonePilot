@@ -1,7 +1,8 @@
 class DocumentService {
   static async saveResumeData(file) {
     try {
-      console.log('📄 Parsing resume file:', file.name, file.type);
+      console.log('📄 Starting resume processing:', file.name, file.type);
+      const overallStart = performance.now();
 
       let parsedContent = '';
 
@@ -13,8 +14,12 @@ class DocumentService {
         throw new Error('Unsupported file type');
       }
 
+      console.log('⏱️ Parsing complete:', (performance.now() - overallStart).toFixed(2), 'ms');
+
       // Convert file to base64 for storage (to display original file later)
+      const base64Start = performance.now();
       const base64Data = await this.fileToBase64(file);
+      console.log('⏱️ Base64 conversion:', (performance.now() - base64Start).toFixed(2), 'ms');
 
       const resumeData = {
         filename: file.name,
@@ -25,11 +30,14 @@ class DocumentService {
         uploadedAt: new Date().toISOString()
       };
 
+      const storageStart = performance.now();
       await chrome.storage.local.set({ resumeData });
-      console.log('✅ Resume data saved to local storage (with original file)');
+      console.log('⏱️ Storage save:', (performance.now() - storageStart).toFixed(2), 'ms');
+
+      console.log('✅ Resume processing complete:', (performance.now() - overallStart).toFixed(2), 'ms total');
       return resumeData;
     } catch (error) {
-      console.error('Failed to parse and save resume:', error);
+      console.error('❌ Failed to parse and save resume:', error);
       throw error;
     }
   }
@@ -45,8 +53,12 @@ class DocumentService {
 
   static async parsePDF(file) {
     try {
+      console.log('📄 Starting PDF parsing:', file.name, 'Size:', (file.size / 1024).toFixed(2), 'KB');
+      const startTime = performance.now();
+
       // For PDF parsing, we'll use PDF.js library
       const arrayBuffer = await file.arrayBuffer();
+      console.log('⏱️ ArrayBuffer created:', (performance.now() - startTime).toFixed(2), 'ms');
 
       // Note: This requires pdf.js to be loaded
       if (typeof pdfjsLib === 'undefined') {
@@ -54,19 +66,33 @@ class DocumentService {
         return `[PDF Resume: ${file.name} - Content parsing requires PDF.js library]`;
       }
 
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      console.log('⏱️ PDF loaded:', (performance.now() - startTime).toFixed(2), 'ms', '- Pages:', pdf.numPages);
+
       let fullText = '';
 
+      // Parse all pages in parallel for better performance
+      const pagePromises = [];
       for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += pageText + '\n';
+        pagePromises.push(
+          pdf.getPage(i).then(page =>
+            page.getTextContent().then(textContent =>
+              textContent.items.map(item => item.str).join(' ')
+            )
+          )
+        );
       }
+
+      const pageTexts = await Promise.all(pagePromises);
+      fullText = pageTexts.join('\n');
+
+      const endTime = performance.now();
+      console.log('✅ PDF parsed successfully:', (endTime - startTime).toFixed(2), 'ms', '- Text length:', fullText.length, 'chars');
 
       return fullText.trim();
     } catch (error) {
-      console.error('PDF parsing failed:', error);
+      console.error('❌ PDF parsing failed:', error);
       return `[PDF Resume: ${file.name} - Parsing failed: ${error.message}]`;
     }
   }
