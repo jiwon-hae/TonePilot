@@ -1,4 +1,4 @@
-# TonePilot 🚀
+# ComposeEdge 🚀
 
 **Intelligent AI-Powered Writing Assistant for Chrome**
 
